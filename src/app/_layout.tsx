@@ -1,56 +1,26 @@
-import { useEffect, useState } from "react"
-import { Slot, SplashScreen } from "expo-router"
-import { KeyboardProvider } from "react-native-keyboard-controller"
+import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 
-import { useFonts } from "@expo-google-fonts/space-grotesk"
-import { customFontsToLoad } from "@/theme"
-import { initI18n } from "@/i18n"
-import { loadDateFnsLocale } from "@/utils/formatDate"
-import { useThemeProvider } from "@/utils/useAppTheme"
-
-SplashScreen.preventAutoHideAsync()
-
-if (__DEV__) {
-  // Load Reactotron configuration in development. We don't want to
-  // include this in our production bundle, so we are using `if (__DEV__)`
-  // to only execute this in development.
-  require("src/devtools/ReactotronConfig.ts")
-}
-
-export { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary"
-
-export default function Root() {
-  const [fontsLoaded, fontError] = useFonts(customFontsToLoad)
-  const [isI18nInitialized, setIsI18nInitialized] = useState(false)
-  const { themeScheme, setThemeContextOverride, ThemeProvider } = useThemeProvider()
-
+export default function RootLayout() {
   useEffect(() => {
-    initI18n()
-      .then(() => setIsI18nInitialized(true))
-      .then(() => loadDateFnsLocale())
-  }, [])
-
-  const loaded = fontsLoaded && isI18nInitialized
-
-  useEffect(() => {
-    if (fontError) throw fontError
-  }, [fontError])
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync()
+    async function loadFonts() {
+      await Font.loadAsync(Ionicons.font);
     }
-  }, [loaded])
-
-  if (!loaded) {
-    return null
-  }
+    loadFonts();
+  }, []);
 
   return (
-    <ThemeProvider value={{ themeScheme, setThemeContextOverride }}>
-      <KeyboardProvider>
-        <Slot />
-      </KeyboardProvider>
-    </ThemeProvider>
-  )
+    <>
+      <Stack screenOptions={{ 
+        headerShown: false,
+        contentStyle: { backgroundColor: '#f5f5f5' }
+      }}>
+        <Stack.Screen name="(tabs)"  />
+      </Stack>
+      <StatusBar style="auto" />
+    </>
+  );
 }

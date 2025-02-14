@@ -14,15 +14,41 @@
     },
     "newArchEnabled": true,
     "jsEngine": "hermes",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "android": {
       "icon": "./assets/images/app-icon-android-legacy.png",
       "package": "com.taskly",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
         "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
+      },
+      "intentFilters": [
+        {
+          "action": "android.intent.action.VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "taskly"
+            }
+          ],
+          "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+        },
+        {
+          "action": "android.intent.action.CREATE_NOTE",
+          "category": ["android.intent.category.DEFAULT"]
+        }
+      ],
+
+      "shortcuts": [
+        {
+          "shortcutId": "record_note",
+          "shortcutShortLabel": "Record Note",
+          "shortcutLongLabel": "Record New Note"
+        }
+      ],
+      "appActions": {
+        "enabled": true,
+        "resource": "@xml/actions"
       }
     },
     "ios": {
@@ -46,7 +72,18 @@
           "backgroundColor": "#191015"
         }
       ],
-      "expo-router"
+      "expo-router",
+      [
+        "expo-quick-actions",
+        {
+          "androidIcons": {
+            "ic_launcher": {
+              "foregroundImage": "./assets/icons/add.png",
+              "backgroundColor": "#FFFFFF"
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "tsconfigPaths": true,

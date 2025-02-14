@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { Link, router } from 'expo-router';
 
 const SAMPLE_NOTES = [
   { 
@@ -33,6 +35,13 @@ const SAMPLE_NOTES = [
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const NoteCard = memo(({ item, index }) => {
+  const handlePress = useCallback(() => {
+    router.push({
+      pathname: '/note/[id]',
+      params: { id: item.id }
+    });
+  }, [item.id]);
+
   const handleShare = useCallback(() => {
     // Share functionality
   }, []);
@@ -43,6 +52,7 @@ const NoteCard = memo(({ item, index }) => {
 
   return (
     <AnimatedPressable 
+      onPress={handlePress}
       style={[styles.noteCard, { backgroundColor: `${item.color}10` }]}
       entering={FadeInUp.delay(index * 100)}
       exiting={FadeOutDown}
@@ -73,9 +83,44 @@ const NoteCard = memo(({ item, index }) => {
 });
 
 const FAB = memo(() => {
+  useEffect(() => {
+    const handleDeepLink = ({ url }) => {
+      // Parse the URL to handle different deep link formats
+      const handleAddNote = () => {
+        console.log("Opening new note from shortcut");
+        router.push('/note/new');
+      };
+      if (url) {
+        // Handle both custom scheme and universal links
+        const path = url.replace(/.*?:\/\/?/, '');
+        if (path.includes('add_note')) {
+          handleAddNote();
+        }
+      }
+    };
+
+    // Handle initial URL
+    const getInitialURL = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        if (url) {
+          handleDeepLink({ url });
+        }
+      } catch (error) {
+        console.error('Error getting initial URL:', error);
+      }
+    };
+
+    getInitialURL();
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const handlePress = useCallback(() => {
-    // Record note functionality
-    console.log("pressed")
+    router.push('/note/new');
   }, []);
 
   return (
@@ -97,6 +142,7 @@ export default function NotesScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Welcome back!</Text>
         <Text style={styles.subtitle}>You have {SAMPLE_NOTES.length} notes</Text>

@@ -32,7 +32,11 @@
       "extends": "preview",
       "ios": { "simulator": false }
     },
-    "production": {}
+    "production": {
+      "android": {
+        "buildType": "apk"
+      }
+    }
   },
   "submit": {
     "production": {}

@@ -1359,7 +1359,7 @@
     resolve-from "^5.0.0"
     semver "^7.6.0"
 
-"@expo/image-utils@^0.6.4":
+"@expo/image-utils@^0.6.4", "@expo/image-utils@~0.6.3":
   version "0.6.4"
   resolved "https://registry.yarnpkg.com/@expo/image-utils/-/image-utils-0.6.4.tgz#fc0c18de576c2bb0328d0ff9d067c5ba68c83d28"
   integrity sha512-L++1PBzSvf5iYc6UHJ8Db8GcYNkfLDw+a+zqEFBQ3xqRXP/muxb/O7wuiMFlXrj/cfkx4e0U+z1a4ceV0A7S7Q==
@@ -4423,6 +4423,11 @@ expect@^29.0.0, expect@^29.7.0:
     jest-message-util "^29.7.0"
     jest-util "^29.7.0"
 
+expo-application@~6.0.2:
+  version "6.0.2"
+  resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-6.0.2.tgz#4384299f0518958e2fb18b8b029af5583c642479"
+  integrity sha512-qcj6kGq3mc7x5yIb5KxESurFTJCoEKwNEL34RdPEvTB/xhl7SeVZlu05sZBqxB1V4Ryzq/LsCb7NHNfBbb3L7A==
+
 expo-asset@~11.0.3:
   version "11.0.3"
   resolved "https://registry.yarnpkg.com/expo-asset/-/expo-asset-11.0.3.tgz#2fa2ff07c4ba028e2fa8210bd44b5aa2107b6101"
@@ -4518,6 +4523,23 @@ expo-modules-core@2.2.1:
   integrity sha512-pxQpfgevHiy5EVRDE0w3mrVu0UTNHELr4GDXEQWAE1g4JVS5ZGNq/Gu2VGgFbBP18KGPNB+gEy8UFI48ADbiuw==
   dependencies:
     invariant "^2.2.4"
+
+expo-navigation-bar@~4.0.8:
+  version "4.0.8"
+  resolved "https://registry.yarnpkg.com/expo-navigation-bar/-/expo-navigation-bar-4.0.8.tgz#69e09259f1ef7ac0b3bd79d98488358ab339173e"
+  integrity sha512-rmQkCCwfYeR29GTPwoNuN7eWE8bYCW5UGJ/5CnZQxIaiBmOeepoDXu50AzEM5ZFPMK6J12nvyu1yj0ujbLUpsQ==
+  dependencies:
+    "@react-native/normalize-colors" "0.76.7"
+    debug "^4.3.2"
+
+expo-quick-actions@^4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/expo-quick-actions/-/expo-quick-actions-4.0.2.tgz#6828c5c77022f40c29c6cc696042ee766c2a8837"
+  integrity sha512-0HCeGf+rEfDOyDqFXmU3vGVm34e9ZJ2iaCXOw6fM6yWFWqSBUR39RBoX4KOYGFScnW5ZftZIG3cbbrumDSrxQg==
+  dependencies:
+    "@expo/image-utils" "~0.6.3"
+    schema-utils "^4.2.0"
+    sf-symbols-typescript "^2.0.0"
 
 expo-router@~4.0.17:
   version "4.0.17"
@@ -7715,6 +7737,11 @@ react-native-mmkv@3.1.0:
   resolved "https://registry.yarnpkg.com/react-native-mmkv/-/react-native-mmkv-3.1.0.tgz#4b2c321cf11bde2f9da32acf76e0178ecd332ccc"
   integrity sha512-HDh89nYVSufHMweZ3TVNUHQp2lsEh1ApaoV08bUOU1nrlmGgC3I7tGUn1Uy40Hs7yRMPKx5NWKE5Dh86jTVrwg==
 
+react-native-quick-actions@^0.3.13:
+  version "0.3.13"
+  resolved "https://registry.yarnpkg.com/react-native-quick-actions/-/react-native-quick-actions-0.3.13.tgz#74431b0b30e98ac896e44cc1024c38864cfe2bbc"
+  integrity sha512-Vz13a0+NV0mzCh/29tNt0qDzWPh8i2srTQW8eCSzGFDArnVm1COTOhTD0FY0hWHlxRY0ahvX+BlezTDvsyAuMA==
+
 react-native-reanimated@~3.16.1:
   version "3.16.7"
   resolved "https://registry.yarnpkg.com/react-native-reanimated/-/react-native-reanimated-3.16.7.tgz#6c7fa516f62c6743c24d955dada00e3c5323d50d"
@@ -8209,7 +8236,7 @@ scheduler@^0.23.0, scheduler@^0.23.2:
   dependencies:
     loose-envify "^1.1.0"
 
-schema-utils@^4.0.1:
+schema-utils@^4.0.1, schema-utils@^4.2.0:
   version "4.3.0"
   resolved "https://registry.yarnpkg.com/schema-utils/-/schema-utils-4.3.0.tgz#3b669f04f71ff2dfb5aba7ce2d5a9d79b35622c0"
   integrity sha512-Gf9qqc58SpCA/xdziiHz35F4GNIWYWZrEshUc/G/r5BnLph6xpKuLeoJoQuj5WfBIx/eQLf+hmVPYHaxJu7V2g==

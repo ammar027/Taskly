@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actions>
+    <action intentName="actions.intent.CREATE_NOTE">
+        <parameter name="note.type" type="type.googleapis.com/google.actions.v2.NotebookType" />
+        <fulfillment urlTemplate="taskly://note/new">
+            <parameter-mapping urlParameter="type" intentParameter="note.type" />
+        </fulfillment>
+    </action>
+</actions>

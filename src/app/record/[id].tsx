@@ -6,7 +6,7 @@ export default function NoteDetails() {
   const { id } = useLocalSearchParams();
   // Fetch note details using id
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
       <Text>Note Details for ID: {id}</Text>
     </View>
   );

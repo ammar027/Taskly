@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <actions>
-    <action intentName="actions.intent.CREATE_NOTE">
-        <parameter name="note.type" type="type.googleapis.com/google.actions.v2.NotebookType" />
-        <fulfillment urlTemplate="taskly://note/new">
-            <parameter-mapping urlParameter="type" intentParameter="note.type" />
+    <action intentName="com.taskly.intent.RECORD_ITEM">
+        <parameter name="record.type" type="type.googleapis.com/com.taskly.RecordType" />
+        <fulfillment urlTemplate="taskly://record/new">
+            <parameter-mapping urlParameter="type" intentParameter="record.type" />
         </fulfillment>
+    </action>
+    
+    <action intentName="actions.intent.OPEN">
+        <fulfillment urlTemplate="taskly://record/new" />
+    </action>
+    
+    <!-- custom voice commands -->
+    <action intentName="com.taskly.intent.QUICK_RECORD">
+        <fulfillment 
+            urlTemplate="taskly://record/new"
+            fulfillmentMode="actions.fulfillment.DEEPLINK" />
     </action>
 </actions>

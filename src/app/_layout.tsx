@@ -4,8 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import * as QuickActions from "expo-quick-actions";
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import { useQuickActionRouting } from "expo-quick-actions/router";
+import { router } from 'expo-router';
 
 export default function RootLayout() {
   // Set up automatic routing for Quick Actions
@@ -18,17 +19,60 @@ export default function RootLayout() {
     loadFonts();
   }, []);
 
+  // Handle deep links from Google Assistant
+  useEffect(() => {
+    // Handle links that launched the app
+    const getInitialLink = async () => {
+      const url = await Linking.getInitialURL();
+      if (url) {
+        console.log('App launched with URL:', url);
+        handleDeepLink(url);
+      }
+    };
+    
+    getInitialLink();
+
+    // Handle incoming links when app is already running
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('Received URL while running:', url);
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const handleDeepLink = (url: string) => {
+    if (!url) return;
+  
+    console.log('Processing deep link:', url);
+    
+    try {
+      // For custom schemes, extract path manually
+      const path = url.split('://')[1] || '';
+      console.log('Extracted path:', path);
+      
+      if (path.includes('record/new')) {
+        console.log('Navigating to new record screen');
+        router.push('/record/new');
+      }
+    } catch (error) {
+      console.error('Error handling deep link:', error);
+    }
+  };
+
   useEffect(() => {
     QuickActions.setItems([
       {
-        title: "Add Note",
-        subtitle: "Quickly create a new note",
+        title: "Record Item",
+        subtitle: "Quickly create a new record",
         icon: Platform.select({
-          ios: "symbol:square.and.pencil",  // Using SF Symbols
-          android: "record_note",  // Make sure this icon exists in your android resources
+          ios: "symbol:square.and.pencil",
+          android: "add_note", 
         }),
-        id: "add_note",
-        params: { href: "/note/new" }  
+        id: "record_item",
+        params: { href: "/record/new" }
       },
     ]);
   }, []);

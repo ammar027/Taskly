@@ -18,6 +18,7 @@
     "android": {
       "icon": "./assets/images/app-icon-android-legacy.png",
       "package": "com.taskly",
+      "permissions": ["RECORD_AUDIO"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
         "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
@@ -34,16 +35,23 @@
           "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
         },
         {
-          "action": "android.intent.action.CREATE_NOTE",
+          "action": "com.taskly.intent.RECORD_ITEM",
           "category": ["android.intent.category.DEFAULT"]
         }
       ],
-
       "shortcuts": [
         {
-          "shortcutId": "record_note",
-          "shortcutShortLabel": "Record Note",
-          "shortcutLongLabel": "Record New Note"
+          "shortcutId": "record_item",
+          "shortcutShortLabel": "Record Item",
+          "shortcutLongLabel": "Record New Item",
+          "intent": {
+            "action": "com.taskly.intent.RECORD_ITEM",
+            "data": {
+              "scheme": "taskly",
+              "host": "record",
+              "pathPrefix": "/new"
+            }
+          }
         }
       ],
       "appActions": {
@@ -77,11 +85,17 @@
         "expo-quick-actions",
         {
           "androidIcons": {
-            "ic_launcher": {
+            "ic_appaction": {
               "foregroundImage": "./assets/icons/add.png",
-              "backgroundColor": "#FFFFFF"
+              "backgroundColor": "#000"
             }
           }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
       ]
     ],

@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 60,
     backgroundColor: '#ffffff',
   },
   headerTitle: {
@@ -71,13 +71,14 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   columnWrapper: {
-    gap: 12,
+    gap: 1,
   },
   categoryCard: {
     flex: 1,
     aspectRatio: 1,
     borderRadius: 20,
     padding: 16,
+    margin:7,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({

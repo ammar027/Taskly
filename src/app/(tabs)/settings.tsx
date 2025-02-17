@@ -1,8 +1,10 @@
 import { View, Text, StyleSheet, Pressable, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
 
 export default function SettingsScreen() {
   return (
+
     <View style={styles.container}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>
@@ -58,6 +60,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: 50,
   },
   section: {
     marginTop: 20,

@@ -37,7 +37,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const NoteCard = memo(({ item, index }) => {
   const handlePress = useCallback(() => {
     router.push({
-      pathname: '/note/[id]',
+      pathname: '/record/[id]',
       params: { id: item.id }
     });
   }, [item.id]);
@@ -87,8 +87,8 @@ const FAB = memo(() => {
     const handleDeepLink = ({ url }) => {
       // Parse the URL to handle different deep link formats
       const handleAddNote = () => {
-        console.log("Opening new note from shortcut");
-        router.push('/note/new');
+        console.log("Opening new record from shortcut");
+        router.push('/record/new');
       };
       if (url) {
         // Handle both custom scheme and universal links
@@ -120,7 +120,7 @@ const FAB = memo(() => {
   }, []);
 
   const handlePress = useCallback(() => {
-    router.push('/note/new');
+    router.push('/record/new');
   }, []);
 
   return (

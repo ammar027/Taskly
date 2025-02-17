@@ -14,12 +14,12 @@ export default function TabLayout() {
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: '#007AFF',
+        tabBarActiveTintColor: '#4F46E5',
         tabBarInactiveTintColor: '#8E8E93',
         headerStyle: {
           backgroundColor: '#ffffff',
         },
-        headerShadowVisible: false,
+        headerShown:false,
         headerTitleStyle: {
           fontWeight: '600',
           fontSize: 17,

@@ -27,37 +27,20 @@
         {
           "action": "android.intent.action.VIEW",
           "autoVerify": true,
-          "data": [
-            {
-              "scheme": "taskly"
-            }
-          ],
+          "data": [{"scheme": "taskly"}],
           "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
         },
         {
           "action": "com.taskly.intent.RECORD_ITEM",
-          "category": ["android.intent.category.DEFAULT"]
-        }
-      ],
-      "shortcuts": [
+          "category": ["android.intent.category.DEFAULT"],
+          "data": [{"scheme": "taskly", "host": "record", "path": "/new"}]
+        },
         {
-          "shortcutId": "record_item",
-          "shortcutShortLabel": "Record Item",
-          "shortcutLongLabel": "Record New Item",
-          "intent": {
-            "action": "com.taskly.intent.RECORD_ITEM",
-            "data": {
-              "scheme": "taskly",
-              "host": "record",
-              "pathPrefix": "/new"
-            }
-          }
+          "action": "com.taskly.intent.QUICK_RECORD",
+          "category": ["android.intent.category.DEFAULT"],
+          "data": [{"scheme": "taskly", "host": "record", "path": "/new"}]
         }
-      ],
-      "appActions": {
-        "enabled": true,
-        "resource": "@xml/actions"
-      }
+      ]
     },
     "ios": {
       "icon": "./assets/images/app-icon-ios.png",

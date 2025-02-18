@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 80,
+    bottom: Platform.OS === 'ios' ? 100 : 20,
     right: 20,
     backgroundColor: '#4F46E5',
     width: 56,

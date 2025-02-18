@@ -3,7 +3,5 @@
   <color name="iconBackground">#ffffff</color>
   <color name="colorPrimary">#023c69</color>
   <color name="colorPrimaryDark">#191015</color>
-  <color name="record_note_background_color">#ffffff</color>
-  <color name="ic_launcher_background_color">#FFFFFF</color>
   <color name="ic_appaction_background_color">#000</color>
 </resources>

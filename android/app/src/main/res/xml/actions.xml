@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actions>
+    <action intentName="com.taskly.intent.RECORD_ITEM">
+        <parameter name="record.content" type="type.googleapis.com/google.actions.v2.Text">
+            <extractionHint>CREATE_ABOUT</extractionHint>
+        </parameter>
+        <parameter name="record.priority" type="type.googleapis.com/com.taskly.PriorityLevel"/>
+        <fulfillment 
+            urlTemplate="taskly://record/new?content={record.content}&amp;priority={record.priority}"
+            fulfillmentMode="actions.fulfillment.DEEPLINK">
+            <parameter-mapping urlParameter="content" intentParameter="record.content" />
+            <parameter-mapping urlParameter="priority" intentParameter="record.priority" />
+        </fulfillment>
+    </action>
+    
+    <action intentName="actions.intent.OPEN">
+        <fulfillment urlTemplate="taskly://record/new" />
+    </action>
+</actions>

@@ -27,18 +27,16 @@
         {
           "action": "android.intent.action.VIEW",
           "autoVerify": true,
-          "data": [{"scheme": "taskly"}],
+          "data": [
+            {
+              "scheme": "taskly"
+            }
+          ],
           "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
         },
         {
           "action": "com.taskly.intent.RECORD_ITEM",
-          "category": ["android.intent.category.DEFAULT"],
-          "data": [{"scheme": "taskly", "host": "record", "path": "/new"}]
-        },
-        {
-          "action": "com.taskly.intent.QUICK_RECORD",
-          "category": ["android.intent.category.DEFAULT"],
-          "data": [{"scheme": "taskly", "host": "record", "path": "/new"}]
+          "category": ["android.intent.category.DEFAULT"]
         }
       ]
     },

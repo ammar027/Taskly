@@ -34,6 +34,22 @@
         <data android:scheme="taskly"/>
         <data android:scheme="com.taskly"/>
       </intent-filter>
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="taskly"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="com.taskly.intent.RECORD_ITEM"/>
+        <data android:scheme="taskly" android:host="record" android:path="/new" android:mimeType="text/plain"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="com.taskly.intent.QUICK_RECORD"/>
+        <data android:scheme="taskly" android:host="record" android:path="/new" android:mimeType="text/plain"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+      </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.android.intent.action.VIEW"/>
         <data android:scheme="taskly"/>
@@ -42,12 +58,6 @@
       </intent-filter>
       <intent-filter data-generated="true">
         <action android:name="android.intent.action.com.taskly.intent.RECORD_ITEM"/>
-        <data android:scheme="taskly" android:host="record" android:path="/new"/>
-        <category android:name="android.intent.category.android.intent.category.DEFAULT"/>
-      </intent-filter>
-      <intent-filter data-generated="true">
-        <action android:name="android.intent.action.com.taskly.intent.QUICK_RECORD"/>
-        <data android:scheme="taskly" android:host="record" android:path="/new"/>
         <category android:name="android.intent.category.android.intent.category.DEFAULT"/>
       </intent-filter>
     </activity>

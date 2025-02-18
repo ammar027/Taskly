@@ -43,24 +43,51 @@ export default function RootLayout() {
     };
   }, []);
 
-  const handleDeepLink = (url: string) => {
-    if (!url) return;
+
+const handleDeepLink = (url: string) => {
+  if (!url) return;
+
+  console.log('Processing deep link:', url);
   
-    console.log('Processing deep link:', url);
+  try {
+    // Parse URL and get path and query parameters
+    const urlObj = new URL(url);
+    const path = urlObj.pathname || '';
+    const params = {};
     
-    try {
-      // For custom schemes, extract path manually
-      const path = url.split('://')[1] || '';
-      console.log('Extracted path:', path);
-      
-      if (path.includes('record/new')) {
-        console.log('Navigating to new record screen');
-        router.push('/record/new');
+    // Extract query parameters
+    urlObj.searchParams.forEach((value, key) => {
+      params[key] = value;
+    });
+    
+    console.log('Path:', path);
+    console.log('Parameters:', params);
+    
+    if (path.includes('/record/new')) {
+      // If we're on the home screen, the params will be handled there
+      // Otherwise, navigate to home with params
+      if (router.canGoBack()) {
+        router.navigate({
+          pathname: '/',
+          params: {
+            content: params.content || '',
+            priority: params.priority || 'medium'
+          }
+        });
+      } else {
+        router.replace({
+          pathname: '/',
+          params: {
+            content: params.content || '',
+            priority: params.priority || 'medium'
+          }
+        });
       }
-    } catch (error) {
-      console.error('Error handling deep link:', error);
     }
-  };
+  } catch (error) {
+    console.error('Error handling deep link:', error);
+  }
+};
 
   useEffect(() => {
     QuickActions.setItems([

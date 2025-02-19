@@ -1,36 +1,12 @@
 import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SAMPLE_NOTES = [
-  { 
-    id: '1', 
-    title: 'Project Brainstorming', 
-    content: 'New features for Q1: AI integration, voice commands, cloud sync',
-    date: '2024-01-20',
-    category: 'Work',
-    color: '#4F46E5'
-  },
-  { 
-    id: '2', 
-    title: 'Travel Plans', 
-    content: 'Research destinations: Japan, Norway, New Zealand. Check flight prices and best seasons.',
-    date: '2024-01-21',
-    category: 'Personal',
-    color: '#059669'
-  },
-  { 
-    id: '3', 
-    title: 'Book Recommendations', 
-    content: 'Atomic Habits, Deep Work, The Psychology of Money',
-    date: '2024-01-22',
-    category: 'Ideas',
-    color: '#DB2777'
-  },
-];
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -83,23 +59,17 @@ const NoteCard = memo(({ item, index }) => {
 });
 
 const FAB = memo(() => {
+  const handlePress = useCallback(() => {
+    router.push('/record/new');
+  }, []);
+
   useEffect(() => {
     const handleDeepLink = ({ url }) => {
-      // Parse the URL to handle different deep link formats
-      const handleAddNote = () => {
-        console.log("Opening new record from shortcut");
-        router.push('/record/new');
-      };
-      if (url) {
-        // Handle both custom scheme and universal links
-        const path = url.replace(/.*?:\/\/?/, '');
-        if (path.includes('add_note')) {
-          handleAddNote();
-        }
+      if (url && url.includes('add_note')) {
+        handlePress();
       }
     };
 
-    // Handle initial URL
     const getInitialURL = async () => {
       try {
         const url = await Linking.getInitialURL();
@@ -119,10 +89,6 @@ const FAB = memo(() => {
     };
   }, []);
 
-  const handlePress = useCallback(() => {
-    router.push('/record/new');
-  }, []);
-
   return (
     <Pressable style={styles.fab} onPress={handlePress}>
       <View style={styles.fabIcon}>
@@ -133,31 +99,128 @@ const FAB = memo(() => {
   );
 });
 
+const STORAGE_KEY = 'notes_data';
+
 export default function NotesScreen() {
+  const [notes, setNotes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const params = useLocalSearchParams();
+  const navigationCount = useRef(0);
+
+  // Debug logging for params
+  useEffect(() => {
+    navigationCount.current += 1;
+    console.log('Navigation count:', navigationCount.current);
+    console.log('Received params:', params);
+    console.log('Current notes:', notes);
+  }, [params]);
+
+  // Load initial notes
+  useEffect(() => {
+    console.log('Loading initial notes...');
+    loadNotes();
+  }, []);
+
+  const loadNotes = async () => {
+    try {
+      console.log('Fetching notes from storage...');
+      const savedNotes = await AsyncStorage.getItem(STORAGE_KEY);
+      if (savedNotes) {
+        const parsedNotes = JSON.parse(savedNotes);
+        console.log('Loaded notes from storage:', parsedNotes);
+        setNotes(parsedNotes);
+      } else {
+        console.log('No notes found in storage');
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle new note from navigation
+  useEffect(() => {
+    if (params?.newNote && !isLoading) {
+      console.log('Processing new note from params...');
+      try {
+        const newNoteData = JSON.parse(params.newNote);
+        console.log('Parsed new note data:', newNoteData);
+        
+        setNotes(prevNotes => {
+          // Log previous notes
+          console.log('Previous notes:', prevNotes);
+          
+          // Check for duplicate
+          const isDuplicate = prevNotes.some(note => note.id === newNoteData.id);
+          
+          if (isDuplicate) {
+            console.log('Duplicate note detected, not adding');
+            return prevNotes;
+          }
+          
+          const updatedNotes = [newNoteData, ...prevNotes];
+          console.log('Updated notes array:', updatedNotes);
+          return updatedNotes;
+        });
+      } catch (error) {
+        console.error('Error processing new note:', error);
+      }
+    }
+  }, [params?.newNote, params?.timestamp, isLoading]);
+
+  // Monitor notes state changes
+  useEffect(() => {
+    console.log('Notes state updated:', notes);
+  }, [notes]);
+
   const renderItem = useCallback(({ item, index }) => (
     <NoteCard item={item} index={index} />
   ), []);
 
   const keyExtractor = useCallback((item) => item.id, []);
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Welcome back!</Text>
-        <Text style={styles.subtitle}>You have {SAMPLE_NOTES.length} notes</Text>
+        <Text style={styles.subtitle}>You have {notes.length} notes</Text>
       </View>
       
-      <FlatList
-        data={SAMPLE_NOTES}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContainer}
-        removeClippedSubviews={true}
-        initialNumToRender={5}
-        maxToRenderPerBatch={5}
-        windowSize={5}
-      />
+      {notes.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons 
+            name="document-text-outline" 
+            size={48} 
+            color="#94A3B8" 
+          />
+          <Text style={styles.emptyStateText}>No notes yet</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Tap the microphone button to create your first note
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notes}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContainer}
+          removeClippedSubviews={Platform.OS === 'android'}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+        />
+      )}
       
       <FAB />
     </View>
@@ -187,6 +250,24 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 12,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 8,
   },
   noteCard: {
     marginBottom: 16,

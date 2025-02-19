@@ -19,6 +19,7 @@
     </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true">
+    <meta-data android:name="com.google.android.actions" android:resource="@xml/actions"/>
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
@@ -50,15 +51,23 @@
         <data android:scheme="taskly" android:host="record" android:path="/new" android:mimeType="text/plain"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="taskly" android:host="record" android:pathPattern="/new"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="taskly" android:host="record" android:pathPattern="/new"/>
+      </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.android.intent.action.VIEW"/>
         <data android:scheme="taskly"/>
         <category android:name="android.intent.category.android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.android.intent.category.BROWSABLE"/>
-      </intent-filter>
-      <intent-filter data-generated="true">
-        <action android:name="android.intent.action.com.taskly.intent.RECORD_ITEM"/>
-        <category android:name="android.intent.category.android.intent.category.DEFAULT"/>
       </intent-filter>
     </activity>
   </application>

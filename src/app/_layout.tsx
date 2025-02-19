@@ -44,51 +44,61 @@ export default function RootLayout() {
   }, []);
 
 
-const handleDeepLink = (url: string) => {
-  if (!url) return;
-
-  console.log('Processing deep link:', url);
+  const handleDeepLink = (url: string) => {
+    if (!url) return;
   
-  try {
-    // Parse URL and get path and query parameters
-    const urlObj = new URL(url);
-    const path = urlObj.pathname || '';
-    const params = {};
+    console.log('Processing deep link:', url);
     
-    // Extract query parameters
-    urlObj.searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
-    
-    console.log('Path:', path);
-    console.log('Parameters:', params);
-    
-    if (path.includes('/record/new')) {
-      // If we're on the home screen, the params will be handled there
-      // Otherwise, navigate to home with params
-      if (router.canGoBack()) {
-        router.navigate({
-          pathname: '/',
-          params: {
-            content: params.content || '',
-            priority: params.priority || 'medium'
+    try {
+      // Parse URL and get path and query parameters
+      const parsedUrl = new URL(url);
+      const path = parsedUrl.pathname || '';
+      const params: Record<string, string> = {};
+      
+      // Extract query parameters
+      parsedUrl.searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+      
+      console.log('Path:', path);
+      console.log('Parameters:', params);
+      
+      // Handle record creation
+      if (path.includes('/record/new')) {
+        // Navigate to record creation screen with parameters
+        const navigationParams = {
+          content: params.content || '',
+          priority: params.priority || 'medium'
+        };
+        
+        console.log('Navigating to record screen with params:', navigationParams);
+        
+        // If we have a non-empty content from Google Assistant, use it
+        if (navigationParams.content) {
+          if (router.canGoBack()) {
+            router.navigate({
+              pathname: '/record/new',
+              params: navigationParams
+            });
+          } else {
+            router.replace({
+              pathname: '/record/new',
+              params: navigationParams
+            });
           }
-        });
-      } else {
-        router.replace({
-          pathname: '/',
-          params: {
-            content: params.content || '',
-            priority: params.priority || 'medium'
+        } else {
+          // Just open the record screen without pre-filled content
+          if (router.canGoBack()) {
+            router.navigate('/record/new');
+          } else {
+            router.replace('/record/new');
           }
-        });
+        }
       }
+    } catch (error) {
+      console.error('Error handling deep link:', error);
     }
-  } catch (error) {
-    console.error('Error handling deep link:', error);
-  }
-};
-
+  };
   useEffect(() => {
     QuickActions.setItems([
       {

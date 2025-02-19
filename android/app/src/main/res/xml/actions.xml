@@ -1,19 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <actions>
-    <action intentName="com.taskly.intent.RECORD_ITEM">
-        <parameter name="record.content" type="type.googleapis.com/google.actions.v2.Text">
-            <extractionHint>CREATE_ABOUT</extractionHint>
+    <!-- App Action to open record screen -->
+    <action intentName="actions.intent.OPEN_APP_FEATURE">
+        <parameter name="feature" required="true">
+            <entity-set-reference entitySetId="FeatureEntitySet"/>
         </parameter>
-        <parameter name="record.priority" type="type.googleapis.com/com.taskly.PriorityLevel"/>
-        <fulfillment 
-            urlTemplate="taskly://record/new?content={record.content}&amp;priority={record.priority}"
-            fulfillmentMode="actions.fulfillment.DEEPLINK">
-            <parameter-mapping urlParameter="content" intentParameter="record.content" />
-            <parameter-mapping urlParameter="priority" intentParameter="record.priority" />
+        <fulfillment urlTemplate="taskly://record/new">
+            <parameter-mapping
+                intentParameter="feature"
+                urlParameter="feature" />
         </fulfillment>
     </action>
-    
-    <action intentName="actions.intent.OPEN">
-        <fulfillment urlTemplate="taskly://record/new" />
+
+    <!-- App Action to create a task with speech -->
+    <action intentName="actions.intent.CREATE_TASK">
+        <parameter name="content" required="true">
+            <entity-set-reference entitySetId="ContentEntitySet"/>
+        </parameter>
+        <parameter name="priority" required="false">
+            <entity-set-reference entitySetId="PriorityEntitySet"/>
+        </parameter>
+        <fulfillment urlTemplate="taskly://record/new?content={content}&amp;priority={priority}"/>
     </action>
+
+    <!-- Entity sets -->
+    <entity-set entitySetId="FeatureEntitySet">
+        <entity
+            name="record"
+            identifier="record" />
+    </entity-set>
+
+    <entity-set entitySetId="ContentEntitySet">
+        <entity
+            name="@dynamic"
+            identifier="@dynamic" />
+    </entity-set>
+
+    <entity-set entitySetId="PriorityEntitySet">
+        <entity
+            name="high"
+            identifier="high" />
+        <entity
+            name="medium"
+            identifier="medium" />
+        <entity
+            name="low"
+            identifier="low" />
+    </entity-set>
 </actions>

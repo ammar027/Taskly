@@ -1,16 +1,19 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { CategorySelectionModal } from './categoriessection';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const STORAGE_KEY = 'notes_data';
 
-const NoteCard = memo(({ item, index }) => {
+const NoteCard = memo(({ item, index, onDelete, onUpdateCategory }) => {
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  
   const handlePress = useCallback(() => {
     router.push({
       pathname: '/record/[id]',
@@ -22,39 +25,68 @@ const NoteCard = memo(({ item, index }) => {
     // Share functionality
   }, []);
 
-  const handleBookmark = useCallback(() => {
-    // Bookmark functionality
+  const handleCategorySelect = useCallback(() => {
+    setCategoryModalVisible(true);
   }, []);
 
+  const handleUpdateCategory = useCallback((category) => {
+    if (onUpdateCategory) {
+      onUpdateCategory(item.id, category);
+    }
+  }, [item.id, onUpdateCategory]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Note",
+      "Are you sure you want to delete this note?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", onPress: () => onDelete(item.id), style: "destructive" }
+      ]
+    );
+  }, [item.id, onDelete]);
+
   return (
-    <AnimatedPressable 
-      onPress={handlePress}
-      style={[styles.noteCard, { backgroundColor: `${item.color}10` }]}
-      entering={FadeInUp.delay(index * 100)}
-      exiting={FadeOutDown}
-    >
-      <View style={styles.noteHeader}>
-        <View style={styles.titleContainer}>
-          <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
-          <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+    <>
+      <AnimatedPressable 
+        onPress={handlePress}
+        style={[styles.noteCard, { backgroundColor: `${item.color}10` }]}
+        entering={FadeInUp.delay(index * 100)}
+        exiting={FadeOutDown}
+      >
+        <View style={styles.noteHeader}>
+          <View style={styles.titleContainer}>
+            <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
+            <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+          </View>
+          <Text style={[styles.noteCategory, { backgroundColor: `${item.color}20`, color: item.color }]}>
+            {item.category}
+          </Text>
         </View>
-        <Text style={[styles.noteCategory, { backgroundColor: `${item.color}20`, color: item.color }]}>
-          {item.category}
-        </Text>
-      </View>
-      <Text style={styles.noteContent} numberOfLines={2}>{item.content}</Text>
-      <View style={styles.noteFooter}>
-        <Text style={styles.noteDate}>{item.date}</Text>
-        <View style={styles.actionIcons}>
-          <Pressable style={styles.iconButton} onPress={handleBookmark}>
-            <Ionicons name="bookmark-outline" size={18} color="#6B7280" />
-          </Pressable>
-          <Pressable style={styles.iconButton} onPress={handleShare}>
-            <Ionicons name="share-outline" size={18} color="#6B7280" />
-          </Pressable>
+        <Text style={styles.noteContent} numberOfLines={2}>{item.content}</Text>
+        <View style={styles.noteFooter}>
+          <Text style={styles.noteDate}>{item.date}</Text>
+          <View style={styles.actionIcons}>
+            <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
+              <Ionicons name="folder-outline" size={18} color="#6B7280" />
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={handleShare}>
+              <Ionicons name="share-outline" size={18} color="#6B7280" />
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            </Pressable>
+          </View>
         </View>
-      </View>
-    </AnimatedPressable>
+      </AnimatedPressable>
+      
+      <CategorySelectionModal
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        onSelectCategory={handleUpdateCategory}
+        currentCategory={item.category}
+      />
+    </>
   );
 });
 
@@ -99,15 +131,12 @@ const FAB = memo(() => {
   );
 });
 
-const STORAGE_KEY = 'notes_data';
-
 export default function NotesScreen() {
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const params = useLocalSearchParams();
   const navigationCount = useRef(0);
 
-  // Debug logging for params
   useEffect(() => {
     navigationCount.current += 1;
     console.log('Navigation count:', navigationCount.current);
@@ -115,7 +144,6 @@ export default function NotesScreen() {
     console.log('Current notes:', notes);
   }, [params]);
 
-  // Load initial notes
   useEffect(() => {
     console.log('Loading initial notes...');
     loadNotes();
@@ -139,7 +167,21 @@ export default function NotesScreen() {
     }
   };
 
-  // Handle new note from navigation
+  useEffect(() => {
+    if (!isLoading) {
+      saveNotes();
+    }
+  }, [notes, isLoading]);
+
+  const saveNotes = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+      console.log('Notes saved to storage successfully');
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    }
+  };
+
   useEffect(() => {
     if (params?.newNote && !isLoading) {
       console.log('Processing new note from params...');
@@ -147,11 +189,13 @@ export default function NotesScreen() {
         const newNoteData = JSON.parse(params.newNote);
         console.log('Parsed new note data:', newNoteData);
         
+        // Set default category if none is provided
+        if (!newNoteData.category) {
+          newNoteData.category = 'Notes';
+          newNoteData.color = '#4F46E5';
+        }
+        
         setNotes(prevNotes => {
-          // Log previous notes
-          console.log('Previous notes:', prevNotes);
-          
-          // Check for duplicate
           const isDuplicate = prevNotes.some(note => note.id === newNoteData.id);
           
           if (isDuplicate) {
@@ -169,14 +213,52 @@ export default function NotesScreen() {
     }
   }, [params?.newNote, params?.timestamp, isLoading]);
 
-  // Monitor notes state changes
-  useEffect(() => {
-    console.log('Notes state updated:', notes);
-  }, [notes]);
+  const handleDeleteNote = useCallback((noteId) => {
+    console.log('Deleting note with ID:', noteId);
+    
+    setNotes(prevNotes => {
+      const updatedNotes = prevNotes.filter(note => note.id !== noteId);
+      console.log('Notes after deletion:', updatedNotes);
+      return updatedNotes;
+    });
+  }, []);
+
+  const handleUpdateCategory = useCallback(async (noteId, selectedCategory) => {
+    console.log('Updating category for note:', noteId, selectedCategory);
+    
+    try {
+      // Update the note with the new category in state
+      setNotes(prevNotes => {
+        const updatedNotes = prevNotes.map(note => {
+          if (note.id === noteId) {
+            return {
+              ...note,
+              category: selectedCategory.name,
+              color: selectedCategory.color,
+              lastEdited: new Date().toISOString(),
+            };
+          }
+          return note;
+        });
+        
+        console.log('Notes after category update:', updatedNotes);
+        return updatedNotes;
+      });
+      
+    } catch (error) {
+      console.error('Error updating note category:', error);
+      Alert.alert('Error', 'Failed to update category');
+    }
+  }, []);
 
   const renderItem = useCallback(({ item, index }) => (
-    <NoteCard item={item} index={index} />
-  ), []);
+    <NoteCard 
+      item={item} 
+      index={index} 
+      onDelete={handleDeleteNote}
+      onUpdateCategory={handleUpdateCategory}
+    />
+  ), [handleDeleteNote, handleUpdateCategory]);
 
   const keyExtractor = useCallback((item) => item.id, []);
 

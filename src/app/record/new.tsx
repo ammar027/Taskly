@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, ScrollView, StyleSheet, TouchableOpacity, Animated, Dimensions, Platform } from "react-native";
+import { View, ScrollView, StyleSheet, TouchableOpacity, Animated, Dimensions, Platform, Pressable } from "react-native";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { Text, ActivityIndicator, useTheme, Surface, ProgressBar, Chip, Button } from "react-native-paper";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from "expo-status-bar";
 import LottieView from 'lottie-react-native';
@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router"; // Import useRout
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
-const DESCRIPTION_DECISION_COUNTDOWN = 0; // Reduced to 3 seconds for faster flow
+const DESCRIPTION_DECISION_COUNTDOWN = 3; // Reduced to 3 seconds for faster flow
 const SPEECH_TIMEOUT = 2500; // Shorter timeout for speech detection
 
 const NewTask = () => {
@@ -433,10 +433,12 @@ const NewTask = () => {
     }
     
     // Update task data with final timestamp
-    setTaskData(prev => ({
-      ...prev,
-      created: new Date().toISOString()
-    }));
+    setTaskData(prev => {
+      return ({
+        ...prev,
+        created: new Date().toISOString()
+      });
+    });
     
     // Auto-save after 3 seconds (reduced from 5)
     setTimeout(() => {
@@ -529,6 +531,9 @@ const NewTask = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={27} color="#1e293b" />
+        </Pressable>
       <View style={styles.statusBar}>
         <View style={styles.statusIndicator}>
           {recognizing && (
@@ -752,8 +757,8 @@ const NewTask = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  statusBar: { alignItems: 'center', justifyContent: 'center', marginTop: 50, marginBottom: 5, height: 40 },
+  container: { flex: 1 ,paddingTop: 30,},
+  statusBar: { alignItems: 'center', justifyContent: 'center', marginTop: 0, marginBottom: 5, height: 40 },
   statusIndicator: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.05)' },
   statusText: { fontSize: 16, fontWeight: '600' },
   recordingIndicator: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
@@ -800,7 +805,8 @@ const styles = StyleSheet.create({
   startPromptText: { color: 'white', marginLeft: 8, fontWeight: '500' },
   finalButtons: { flexDirection: 'row', justifyContent: 'center', width: '100%' },
   finalButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25, marginHorizontal: 10, minWidth: 120, elevation: 2 },
-  finalButtonText: { marginLeft: 8, fontWeight: '500' }
+  finalButtonText: { marginLeft: 8, fontWeight: '500' },
+  backButton: { padding: 10,left: 5,},
 });
 
 export default NewTask;

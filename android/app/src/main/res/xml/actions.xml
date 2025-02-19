@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <actions>
-    <!-- App Action to open record screen -->
+    <!-- Open record/task screen -->
     <action intentName="actions.intent.OPEN_APP_FEATURE">
         <parameter name="feature" required="true">
             <entity-set-reference entitySetId="FeatureEntitySet"/>
@@ -12,15 +12,18 @@
         </fulfillment>
     </action>
 
-    <!-- App Action to create a task with speech -->
-    <action intentName="actions.intent.CREATE_TASK">
-        <parameter name="content" required="true">
+    <!-- Create task with speech content -->
+    <action intentName="actions.intent.CREATE_THING">
+        <parameter name="thing.name" required="true">
+            <entity-set-reference entitySetId="TaskEntitySet"/>
+        </parameter>
+        <parameter name="thing.description" required="true">
             <entity-set-reference entitySetId="ContentEntitySet"/>
         </parameter>
-        <parameter name="priority" required="false">
+        <parameter name="thing.importance" required="false">
             <entity-set-reference entitySetId="PriorityEntitySet"/>
         </parameter>
-        <fulfillment urlTemplate="taskly://record/new?content={content}&amp;priority={priority}"/>
+        <fulfillment urlTemplate="taskly://create-task?content={thing.description}&amp;priority={thing.importance}"/>
     </action>
 
     <!-- Entity sets -->
@@ -28,6 +31,24 @@
         <entity
             name="record"
             identifier="record" />
+        <entity
+            name="task"
+            identifier="task" />
+        <entity
+            name="note"
+            identifier="note" />
+    </entity-set>
+
+    <entity-set entitySetId="TaskEntitySet">
+        <entity
+            name="task"
+            identifier="task" />
+        <entity
+            name="note"
+            identifier="note" />
+        <entity
+            name="todo"
+            identifier="todo" />
     </entity-set>
 
     <entity-set entitySetId="ContentEntitySet">

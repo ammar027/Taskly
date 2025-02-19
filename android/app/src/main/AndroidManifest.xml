@@ -61,7 +61,7 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="taskly" android:host="record" android:pathPattern="/new"/>
+        <data android:scheme="taskly" android:host="create-task"/>
       </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.android.intent.action.VIEW"/>

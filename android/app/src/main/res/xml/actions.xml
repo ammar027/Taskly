@@ -23,7 +23,9 @@
         <parameter name="thing.importance" required="false">
             <entity-set-reference entitySetId="PriorityEntitySet"/>
         </parameter>
-        <fulfillment urlTemplate="taskly://create-task?content={thing.description}&amp;priority={thing.importance}"/>
+        <fulfillment urlTemplate="taskly://record/new?content={thing.description}&amp;priority={thing.importance}"/>
+        <!-- taskly://record/new?content=Ammar%20Test&priority=high&autoStart=true -->
+        <!-- "taskly://create-task?content={thing.description}&amp;priority={thing.importance}" -->
     </action>
 
     <!-- Entity sets -->

@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router"; // Import useRout
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
-const DESCRIPTION_DECISION_COUNTDOWN = 5; // Reduced to 3 seconds for faster flow
+const DESCRIPTION_DECISION_COUNTDOWN = 0; // Reduced to 3 seconds for faster flow
 const SPEECH_TIMEOUT = 2500; // Shorter timeout for speech detection
 
 const NewTask = () => {
@@ -83,7 +83,7 @@ const NewTask = () => {
     }
   }, []);
 
-  
+
      // Auto-start the process when component mounts - modified to check for Assistant params
   useEffect(() => {
     // Only auto-start if not handling Assistant request with content

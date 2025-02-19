@@ -71,6 +71,7 @@ export default function RootLayout() {
           pathname: "/(tabs)/new-task",
           params: {
             content: params.content || '',
+            description: params.description || '',
             priority: params.priority || 'medium',
             assistantRequest: 'true' // Flag that this came from Assistant
           }
@@ -86,6 +87,7 @@ export default function RootLayout() {
           pathname: "/(tabs)/new-task",
           params: {
             content: params.content || '',
+            description: params.description || '',
             priority: params.priority || 'medium',
             assistantRequest: 'true',
             autoStart: 'true' // Auto-start with the content

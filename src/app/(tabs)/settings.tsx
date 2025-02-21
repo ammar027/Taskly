@@ -1,87 +1,259 @@
-import { View, Text, StyleSheet, Pressable, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Switch, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { useTheme, ThemeMode } from '@/components/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 export default function SettingsScreen() {
+  const { theme, isDarkMode, toggleTheme, setThemeMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [pushNotifications, setPushNotifications] = useState(true);
+  
+  // Create theme-specific styles
+  const themeColors = {
+    backgroundColor: isDarkMode ? '#121212' : '#f5f5f5',
+    cardColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+    textColor: isDarkMode ? '#e0e0e0' : '#1c1c1e',
+    subTextColor: isDarkMode ? '#a0a0a0' : '#8e8e93',
+    borderColor: isDarkMode ? '#2c2c2c' : '#e6e6e8',
+    iconColor: isDarkMode ? '#e0e0e0' : '#1c1c1e',
+    accentColor: '#4F46E5',
+    rippleColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+  };
+
+  // Handle theme toggle with proper system/dark/light modes
+  const handleThemeToggle = () => {
+    if (theme === ThemeMode.SYSTEM) {
+      // If currently using system, switch to explicit mode (opposite of current appearance)
+      setThemeMode(isDarkMode ? ThemeMode.LIGHT : ThemeMode.DARK);
+    } else {
+      // Toggle between dark and light
+      setThemeMode(theme === ThemeMode.DARK ? ThemeMode.LIGHT : ThemeMode.DARK);
+    }
+    
+    // Add haptic feedback
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  
+
+  const handleNotificationToggle = () => {
+    setPushNotifications(prev => !prev);
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const _handlePressButtonAsync = async () => {
+    let result = await WebBrowser.openBrowserAsync('https://pvc-p.vercel.app/');
+    setResult(result);
+  };
+
+  // Generate a setting item
+  const SettingItem = ({ icon, text, rightElement, onPress, showBorder = true }) => (
+    <Pressable 
+      style={({ pressed }) => [
+        styles.settingItem, 
+        { 
+          backgroundColor: themeColors.cardColor,
+          borderBottomWidth: showBorder ? StyleSheet.hairlineWidth : 0,
+          borderBottomColor: themeColors.borderColor,
+        },
+        pressed && { backgroundColor: themeColors.rippleColor }
+      ]}
+      onPress={onPress}
+      android_ripple={{ color: themeColors.rippleColor }}
+    >
+      <View style={styles.settingLeft}>
+        <Ionicons 
+          name={icon} 
+          size={22} 
+          color={themeColors.iconColor} 
+          style={styles.settingIcon} 
+        />
+        <Text style={[styles.settingText, { color: themeColors.textColor }]}>
+          {text}
+        </Text>
+      </View>
+      {rightElement}
+    </Pressable>
+  );
+
   return (
-
-    <View style={styles.container}>
+    <ScrollView 
+      style={[
+        styles.container, 
+        { backgroundColor: themeColors.backgroundColor, paddingTop: insets.top }
+      ]}
+      contentContainerStyle={styles.contentContainer}
+    >
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: themeColors.textColor }]}>Settings</Text>
+      </View>
+      
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Ionicons name="moon" size={22} color="#1c1c1e" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Dark Mode</Text>
-          </View>
-          <Switch value={false} onValueChange={() => {}} />
+        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
+          Appearance
+        </Text>
+        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+          <SettingItem 
+            icon="moon" 
+            text="Dark Mode" 
+            rightElement={
+              <Switch 
+                value={isDarkMode} 
+                onValueChange={handleThemeToggle}
+                trackColor={{ false: '#767577', true: themeColors.accentColor }}
+                thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
+                ios_backgroundColor="#3e3e3e"
+              />
+            }
+            showBorder={false}
+          />
+        </View>
+
+        <Text style={[styles.themeInfo, { color: themeColors.subTextColor }]}>
+          {theme === ThemeMode.SYSTEM 
+            ? 'Following system appearance' 
+            : theme === ThemeMode.DARK ? 'Dark mode enabled' : 'Light mode enabled'}
+        </Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
+          Voice Settings
+        </Text>
+        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+          <SettingItem 
+            icon="language" 
+            text="Language" 
+            rightElement={
+              <View style={styles.settingRight}>
+                <Text style={[styles.settingValue, { color: themeColors.subTextColor }]}>
+                  English
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
+              </View>
+            }
+            showBorder={false}
+          />
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Voice Settings</Text>
-        <Pressable style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Ionicons name="language" size={22} color="#1c1c1e" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Language</Text>
-          </View>
-          <View style={styles.settingRight}>
-            <Text style={styles.settingValue}>English</Text>
-            <Ionicons name="chevron-forward" size={20} color="#8e8e93" />
-          </View>
-        </Pressable>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Ionicons name="notifications" size={22} color="#1c1c1e" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Push Notifications</Text>
-          </View>
-          <Switch value={true} onValueChange={() => {}} />
+        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
+          Notifications
+        </Text>
+        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+          <SettingItem 
+            icon="notifications" 
+            text="Push Notifications" 
+            rightElement={
+              <Switch 
+                value={pushNotifications} 
+                onValueChange={handleNotificationToggle}
+                trackColor={{ false: '#767577', true: themeColors.accentColor }}
+                thumbColor={pushNotifications ? '#ffffff' : '#f4f3f4'}
+                ios_backgroundColor="#3e3e3e"
+              />
+            }
+            showBorder={false}
+          />
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <Pressable style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Ionicons name="information-circle" size={22} color="#1c1c1e" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Version</Text>
-          </View>
-          <Text style={styles.settingValue}>1.0.0</Text>
-        </Pressable>
+        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
+          About
+        </Text>
+        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+          <SettingItem 
+            icon="information-circle" 
+            text="Version" 
+            rightElement={
+              <Text style={[styles.settingValue, { color: themeColors.subTextColor }]}>
+                1.0.0
+              </Text>
+            }
+            showBorder={true}
+          />
+          <SettingItem 
+            icon="shield-checkmark" 
+            text="Privacy Policy" 
+            rightElement={
+              <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
+            }
+            showBorder={true}
+          />
+          <SettingItem 
+            icon="document-text" 
+            text="Terms of Service" 
+            rightElement={
+              <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
+            }
+            showBorder={false}
+          />
+        </View>
       </View>
-    </View>
+      
+      <Text style={[styles.footerText, { color: themeColors.subTextColor }]}>
+        © 2025 Taskly
+      </Text>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: 50,
   },
+  contentContainer: {
+    paddingTop:18,
+    paddingBottom: 40,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  headerTitle: { fontSize: 30, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
   section: {
-    marginTop: 20,
+    marginTop: 24,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8e8e93',
-    marginLeft: 16,
     marginBottom: 8,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  card: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#c6c6c8',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -92,7 +264,7 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 16,
-    color: '#1c1c1e',
+    fontWeight: '500',
   },
   settingRight: {
     flexDirection: 'row',
@@ -100,7 +272,17 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     fontSize: 16,
-    color: '#8e8e93',
     marginRight: 4,
+  },
+  themeInfo: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  footerText: {
+    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 32,
   },
 });

@@ -13,7 +13,7 @@ import {
   ViewStyle,
 } from "react-native"
 import { $styles } from "../../theme"
-import { Text, TextProps } from "../Text"
+import { Text, TextProps } from "../temp/Text"
 import { useAppTheme } from "@/utils/useAppTheme"
 import type { ThemedStyle } from "@/theme"
 

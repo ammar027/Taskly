@@ -4,6 +4,7 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/components/ThemeContext';
 
 const STORAGE_KEY = 'notes_data';
 const DEFAULT_CATEGORIES = [
@@ -19,28 +20,41 @@ const DEFAULT_CATEGORIES = [
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CategoryNotesList = ({ notes, category, onClose }) => {
+  const { isDarkMode } = useTheme();
+  
+  // Create theme colors
+  const themeColors = {
+    background: isDarkMode ? '#121212' : '#f8fafc',
+    cardBackground: isDarkMode ? '#1e1e1e' : '#ffffff',
+    textPrimary: isDarkMode ? '#e0e0e0' : '#1e293b',
+    textSecondary: isDarkMode ? '#a0a0a0' : '#64748b',
+    border: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    icon: isDarkMode ? '#e0e0e0' : '#1e293b',
+  };
+  
   const filteredNotes = notes.filter(note => note.category === category.name);
   
   return (
     <Modal
       animationType="slide"
-      transparent={true}
+      transparent={false}
       visible={true}
+      statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
+      <View style={[styles.modalContainer, { backgroundColor: themeColors.background }]}>
+        <View style={[styles.modalHeader, { backgroundColor: themeColors.cardBackground }]}>
           <Pressable onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            <Ionicons name="arrow-back" size={24} color={themeColors.icon} />
           </Pressable>
-          <Text style={styles.modalTitle}>{category.name}</Text>
+          <Text style={[styles.modalTitle, { color: themeColors.textPrimary }]}>{category.name}</Text>
           <View style={{ width: 24 }} />
         </View>
         
         {filteredNotes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyStateText}>No notes in this category</Text>
+            <Ionicons name="document-text-outline" size={48} color={themeColors.textSecondary} />
+            <Text style={[styles.emptyStateText, { color: themeColors.textSecondary }]}>No notes in this category</Text>
           </View>
         ) : (
           <FlatList
@@ -49,17 +63,23 @@ const CategoryNotesList = ({ notes, category, onClose }) => {
             contentContainerStyle={styles.listContainer}
             renderItem={({ item, index }) => (
               <AnimatedPressable 
-                style={[styles.noteCard, { backgroundColor: `${item.color}10` }]}
+                style={[
+                  styles.noteCard, 
+                  { 
+                    backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
+                    borderColor: themeColors.border
+                  }
+                ]}
                 entering={FadeInUp.delay(index * 100)}
               >
                 <View style={styles.noteHeader}>
                   <View style={styles.titleContainer}>
                     <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
-                    <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.noteTitle, { color: themeColors.textPrimary }]} numberOfLines={1}>{item.title}</Text>
                   </View>
                 </View>
-                <Text style={styles.noteContent} numberOfLines={2}>{item.content}</Text>
-                <Text style={styles.noteDate}>{item.date}</Text>
+                <Text style={[styles.noteContent, { color: themeColors.textSecondary }]} numberOfLines={2}>{item.content}</Text>
+                <Text style={[styles.noteDate, { color: themeColors.textSecondary }]}>{item.date}</Text>
               </AnimatedPressable>
             )}
           />
@@ -74,6 +94,17 @@ export default function CategoriesScreen() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { isDarkMode } = useTheme();
+  
+  // Create theme colors
+  const themeColors = {
+    background: isDarkMode ? '#121212' : '#f8fafc',
+    cardBackground: isDarkMode ? '#1e1e1e' : '#ffffff',
+    textPrimary: isDarkMode ? '#e0e0e0' : '#1e293b',
+    textSecondary: isDarkMode ? '#a0a0a0' : '#64748b',
+    border: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    loadingText: isDarkMode ? '#e0e0e0' : '#1e293b',
+  };
 
   useEffect(() => {
     loadNotes();
@@ -144,16 +175,16 @@ export default function CategoriesScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Categories</Text>
-        <Text style={styles.headerSubtitle}>Organize your thoughts</Text>
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
+      <View style={[styles.header, { backgroundColor: themeColors.cardBackground }]}>
+        <Text style={[styles.headerTitle, { color: themeColors.textPrimary }]}>Categories</Text>
+        <Text style={[styles.headerSubtitle, { color: themeColors.textSecondary }]}>Organize your thoughts</Text>
       </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <Text>Loading categories...</Text>
+          <Text style={{ color: themeColors.loadingText }}>Loading categories...</Text>
         </View>
       ) : (
         <FlatList
@@ -164,14 +195,20 @@ export default function CategoriesScreen() {
           columnWrapperStyle={styles.columnWrapper}
           renderItem={({ item, index }) => (
             <AnimatedPressable 
-              style={[styles.categoryCard, { backgroundColor: `${item.color}10` }]}
+              style={[
+                styles.categoryCard, 
+                { 
+                  backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
+                  borderColor: themeColors.border
+                }
+              ]}
               entering={FadeInUp.delay(index * 100)}
               onPress={() => handleCategoryPress(item)}
             >
               <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
                 <Ionicons name={item.icon} size={24} color="#ffffff" />
               </View>
-              <Text style={styles.categoryName}>{item.name}</Text>
+              <Text style={[styles.categoryName, { color: themeColors.textPrimary }]}>{item.name}</Text>
               <Text style={[styles.noteCount, { color: item.color }]}>
                 {item.count} {item.count === 1 ? 'note' : 'notes'}
               </Text>
@@ -192,141 +229,31 @@ export default function CategoriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 60,
-    backgroundColor: '#ffffff',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listContainer: {
-    padding: 12,
-  },
-  columnWrapper: {
-    justifyContent: 'space-between',
-  },
+  container: { flex: 1 },
+  header: { padding: 20, paddingTop: 60 },
+  headerTitle: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
+  headerSubtitle: { fontSize: 15, fontWeight: '500' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContainer: { padding: 12 },
+  columnWrapper: { justifyContent: 'space-between' },
   categoryCard: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 20,
-    padding: 16,
-    margin: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    flex: 1, aspectRatio: 1, borderRadius: 20, padding: 16, margin: 7, alignItems: 'center',
+    justifyContent: 'center', borderWidth: 1,
   },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  categoryName: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  noteCount: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    backgroundColor: '#ffffff',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 12,
-  },
-  // Note card styles for modal view
-  noteCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  categoryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  noteTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1e293b',
-    flex: 1,
-  },
-  noteContent: {
-    fontSize: 15,
-    color: '#475569',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  noteDate: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '500',
-  },
+  iconContainer: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  categoryName: { fontSize: 17, fontWeight: '600', marginBottom: 4, textAlign: 'center' },
+  noteCount: { fontSize: 14, fontWeight: '600' },
+  modalContainer: { flex: 1 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, paddingTop: 60 },
+  closeButton: { padding: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '600' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 12 },
+  noteCard: { marginBottom: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
+  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  titleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  categoryDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  noteTitle: { fontSize: 17, fontWeight: '600', flex: 1 },
+  noteContent: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  noteDate: { fontSize: 13, fontWeight: '500' },
 });

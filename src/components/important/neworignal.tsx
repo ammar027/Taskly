@@ -540,7 +540,7 @@ const NewTask = () => {
                 style={[
                   styles.stepDot,
                   { 
-                    backgroundColor: currentStep >= step ? colors.primary : colors.disabled,
+                    backgroundColor: currentStep >= step ? colors.secondary : colors.disabled,
                     width: currentStep === step ? 12 : 8,
                     height: currentStep === step ? 12 : 8,
                   }

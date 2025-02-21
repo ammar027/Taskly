@@ -7,6 +7,7 @@ import * as QuickActions from "expo-quick-actions";
 import { Platform, Linking } from 'react-native';
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { router } from 'expo-router';
+import { ThemeProvider } from '@/components/ThemeContext';
 
 export default function RootLayout() {
   // Set up automatic routing for Quick Actions
@@ -117,6 +118,7 @@ export default function RootLayout() {
 
   return (
     <>
+    <ThemeProvider>
       <Stack screenOptions={{ 
         headerShown: false,
         contentStyle: { backgroundColor: '#f5f5f5' }
@@ -124,6 +126,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
       </Stack>
       <StatusBar style="auto" />
+      </ThemeProvider>
     </>
   );
 }

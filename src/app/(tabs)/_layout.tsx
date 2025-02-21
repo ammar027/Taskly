@@ -1,28 +1,42 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useTheme } from '@/components/ThemeContext';
 
 export default function TabLayout() {
+  const { isDarkMode } = useTheme();
+  
+  // Define theme colors
+  const themeColors = {
+    tabBackground: isDarkMode ? '#121212' : '#ffffff',
+    tabBorder: isDarkMode ? '#2c2c2c' : '#e5e5e5',
+    headerBackground: isDarkMode ? '#121212' : '#ffffff',
+    activeTintColor: '#4F46E5', // Keep accent color the same for both themes
+    inactiveTintColor: isDarkMode ? '#a0a0a0' : '#8E8E93',
+    headerTintColor: isDarkMode ? '#e0e0e0' : '#1e293b',
+  };
+
   return (
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopWidth: 1,
-          borderTopColor: '#e5e5e5',
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          backgroundColor: themeColors.tabBackground,
+          borderTopWidth: 0.3,
+          borderTopColor: themeColors.tabBorder,
+          height: Platform.OS === 'ios' ? 88 : 78,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 18,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: themeColors.activeTintColor,
+        tabBarInactiveTintColor: themeColors.inactiveTintColor,
         headerStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: themeColors.headerBackground,
         },
-        headerShown:false,
+        headerShown: false,
         headerTitleStyle: {
           fontWeight: '600',
           fontSize: 17,
+          color: themeColors.headerTintColor,
         },
         tabBarLabelStyle: {
           fontSize: 12,

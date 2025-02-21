@@ -6,13 +6,16 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CategorySelectionModal } from './categoriessection';
+import { CategorySelectionModal } from '../../components/Modals/categoriessection';
+import CustomAlert from '@/components/Modals/CutomAlert';
+import { useTheme } from '@/components/ThemeContext';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const STORAGE_KEY = 'notes_data';
 
-const NoteCard = memo(({ item, index, onDelete, onUpdateCategory }) => {
+const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
   
   const handlePress = useCallback(() => {
     router.push({
@@ -35,45 +38,49 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory }) => {
     }
   }, [item.id, onUpdateCategory]);
 
-  const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Note",
-      "Are you sure you want to delete this note?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", onPress: () => onDelete(item.id), style: "destructive" }
-      ]
-    );
-  }, [item.id, onDelete]);
-
   return (
     <>
       <AnimatedPressable 
         onPress={handlePress}
-        style={[styles.noteCard, { backgroundColor: `${item.color}10` }]}
+        style={[
+          styles.noteCard, 
+          { 
+            backgroundColor: `${item.color}${theme.isDarkMode ? '20' : '10'}`,
+            borderColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+          }
+        ]}
         entering={FadeInUp.delay(index * 100)}
         exiting={FadeOutDown}
       >
         <View style={styles.noteHeader}>
           <View style={styles.titleContainer}>
             <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
-            <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={[styles.noteTitle, { color: theme.textColor }]} numberOfLines={1}>{item.title}</Text>
           </View>
-          <Text style={[styles.noteCategory, { backgroundColor: `${item.color}20`, color: item.color }]}>
+          <Text 
+            style={[
+              styles.noteCategory, 
+              { 
+                backgroundColor: `${item.color}${theme.isDarkMode ? '30' : '20'}`, 
+                color: item.color 
+              }
+            ]} 
+            onPress={handleCategorySelect}
+          >
             {item.category}
           </Text>
         </View>
-        <Text style={styles.noteContent} numberOfLines={2}>{item.content}</Text>
+        <Text style={[styles.noteContent, { color: theme.subTextColor }]} numberOfLines={2}>{item.content}</Text>
         <View style={styles.noteFooter}>
-          <Text style={styles.noteDate}>{item.date}</Text>
+          <Text style={[styles.noteDate, { color: theme.mutedTextColor }]}>{item.date}</Text>
           <View style={styles.actionIcons}>
             <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
-              <Ionicons name="folder-outline" size={18} color="#6B7280" />
+              <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
             </Pressable>
             <Pressable style={styles.iconButton} onPress={handleShare}>
-              <Ionicons name="share-outline" size={18} color="#6B7280" />
+              <Ionicons name="share-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
             </Pressable>
-            <Pressable style={styles.iconButton} onPress={handleDelete}>
+            <Pressable style={styles.iconButton} onPress={() => setAlertVisible(true)}>
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </Pressable>
           </View>
@@ -85,12 +92,24 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory }) => {
         onClose={() => setCategoryModalVisible(false)}
         onSelectCategory={handleUpdateCategory}
         currentCategory={item.category}
+        theme={theme}
+      />
+      <CustomAlert
+        visible={alertVisible}
+        title="Delete Note"
+        message="Are you sure you want to delete this note? This action cannot be undone."
+        onCancel={() => setAlertVisible(false)}
+        onDelete={() => {
+          onDelete(item.id);
+          setAlertVisible(false);
+        }}
+        theme={theme}
       />
     </>
   );
 });
 
-const FAB = memo(() => {
+const FAB = memo(({ theme }) => {
   const handlePress = useCallback(() => {
     router.push('/record/new');
   }, []);
@@ -122,7 +141,16 @@ const FAB = memo(() => {
   }, []);
 
   return (
-    <Pressable style={styles.fab} onPress={handlePress}>
+    <Pressable 
+      style={[
+        styles.fab, 
+        { 
+          backgroundColor: theme.isDarkMode ? 'rgba(79, 70, 229, 0.3)' : 'rgb(78, 70, 229)',
+          borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)'
+        }
+      ]} 
+      onPress={handlePress}
+    >
       <View style={styles.fabIcon}>
         <Ionicons name="mic" size={24} color="#ffffff" />
       </View>
@@ -136,6 +164,18 @@ export default function NotesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const params = useLocalSearchParams();
   const navigationCount = useRef(0);
+  const { isDarkMode } = useTheme();
+
+  // Define theme objects
+  const theme = {
+    isDarkMode,
+    backgroundColor: isDarkMode ? '#121212' : '#f8fafc',
+    cardBackground: isDarkMode ? '#1e1e1e' : '#ffffff',
+    textColor: isDarkMode ? '#e0e0e0' : '#1e293b',
+    subTextColor: isDarkMode ? '#a0a0a0' : '#475569',
+    mutedTextColor: isDarkMode ? '#6b7280' : '#64748b',
+    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+  };
 
   useEffect(() => {
     navigationCount.current += 1;
@@ -257,26 +297,27 @@ export default function NotesScreen() {
       index={index} 
       onDelete={handleDeleteNote}
       onUpdateCategory={handleUpdateCategory}
+      theme={theme}
     />
-  ), [handleDeleteNote, handleUpdateCategory]);
+  ), [handleDeleteNote, handleUpdateCategory, theme]);
 
   const keyExtractor = useCallback((item) => item.id, []);
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.backgroundColor }]}>
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       
-      <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome back!</Text>
-        <Text style={styles.subtitle}>You have {notes.length} notes</Text>
+      <View style={[styles.header, { backgroundColor: theme.cardBackground }]}>
+        <Text style={[styles.welcomeText, { color: theme.textColor }]}>Welcome back!</Text>
+        <Text style={[styles.subtitle, { color: theme.mutedTextColor }]}>You have {notes.length} notes</Text>
       </View>
       
       {notes.length === 0 ? (
@@ -284,10 +325,10 @@ export default function NotesScreen() {
           <Ionicons 
             name="document-text-outline" 
             size={48} 
-            color="#94A3B8" 
+            color={isDarkMode ? '#6b7280' : '#94A3B8'} 
           />
-          <Text style={styles.emptyStateText}>No notes yet</Text>
-          <Text style={styles.emptyStateSubtext}>
+          <Text style={[styles.emptyStateText, { color: theme.mutedTextColor }]}>No notes yet</Text>
+          <Text style={[styles.emptyStateSubtext, { color: isDarkMode ? '#6b7280' : '#94A3B8' }]}>
             Tap the microphone button to create your first note
           </Text>
         </View>
@@ -304,135 +345,32 @@ export default function NotesScreen() {
         />
       )}
       
-      <FAB />
+      <FAB theme={theme} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 60,
-    backgroundColor: '#ffffff',
-  },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  listContainer: {
-    padding: 16,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 12,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  noteCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: '#ffffff',
-    elevation: 0,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  categoryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  noteTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1e293b',
-    flex: 1,
-  },
-  noteCategory: {
-    fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  noteContent: {
-    fontSize: 15,
-    color: '#475569',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  noteFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  noteDate: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  actionIcons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  iconButton: {
-    padding: 4,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 20,
-    right: 20,
-    backgroundColor: '#4F46E5',
-    borderRadius: 30,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 0,
-    borderWidth: 1,
-    borderColor: 'rgba(79, 70, 229, 0.1)',
-  },
-  fabIcon: {
-    marginRight: 8,
-  },
-  fabText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  container: { flex: 1 },
+  header: { padding: 20, paddingTop: 60 },
+  welcomeText: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
+  subtitle: { fontSize: 15, fontWeight: '500' },
+  listContainer: { padding: 16 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 12 },
+  emptyStateSubtext: { fontSize: 14, textAlign: 'center', marginTop: 8 },
+  noteCard: { marginBottom: 16, borderRadius: 16, padding: 16, elevation: 0, borderWidth: 1 },
+  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  titleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
+  categoryDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  noteTitle: { fontSize: 22, fontWeight: '600', flex: 1 },
+  noteCategory: { fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  noteContent: { fontSize: 13, lineHeight: 22, marginBottom: 10 },
+  noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  noteDate: { fontSize: 16, fontWeight: '500' },
+  actionIcons: { flexDirection: 'row', gap: 12 },
+  iconButton: { padding: 4 },
+  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 20, right: 20, borderRadius: 30, padding: 16, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
+  fabIcon: { marginRight: 8 },
+  fabText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

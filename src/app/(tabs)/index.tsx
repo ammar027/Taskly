@@ -77,9 +77,9 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
             <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
               <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
             </Pressable>
-            <Pressable style={styles.iconButton} onPress={handleShare}>
+            {/* <Pressable style={styles.iconButton} onPress={handleShare}>
               <Ionicons name="share-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
-            </Pressable>
+            </Pressable> */}
             <Pressable style={styles.iconButton} onPress={() => setAlertVisible(true)}>
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </Pressable>

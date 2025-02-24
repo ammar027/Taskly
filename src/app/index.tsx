@@ -18,5 +18,5 @@ export default function Index() {
     NavigationBar.setButtonStyleAsync(isDarkMode ? 'light' : 'dark');
   }, [isDarkMode]);
 
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/record/new" />;
 }

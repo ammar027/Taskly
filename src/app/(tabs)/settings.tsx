@@ -5,6 +5,7 @@ import { useTheme, ThemeMode } from '@/components/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function SettingsScreen() {
   const { theme, isDarkMode, toggleTheme, setThemeMode } = useTheme();
@@ -23,23 +24,17 @@ export default function SettingsScreen() {
     rippleColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
   };
 
-  // Handle theme toggle with proper system/dark/light modes
   const handleThemeToggle = () => {
     if (theme === ThemeMode.SYSTEM) {
-      // If currently using system, switch to explicit mode (opposite of current appearance)
       setThemeMode(isDarkMode ? ThemeMode.LIGHT : ThemeMode.DARK);
     } else {
-      // Toggle between dark and light
       setThemeMode(theme === ThemeMode.DARK ? ThemeMode.LIGHT : ThemeMode.DARK);
     }
     
-    // Add haptic feedback
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
-
-  
 
   const handleNotificationToggle = () => {
     setPushNotifications(prev => !prev);
@@ -48,12 +43,17 @@ export default function SettingsScreen() {
     }
   };
 
-  const _handlePressButtonAsync = async () => {
-    let result = await WebBrowser.openBrowserAsync('https://pvc-p.vercel.app/');
-    setResult(result);
+  const handlePrivacyPolicy = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      await WebBrowser.openBrowserAsync('https://pvc-p.vercel.app/');
+    } catch (error) {
+      console.error('Error opening privacy policy:', error);
+    }
   };
 
-  // Generate a setting item
   const SettingItem = ({ icon, text, rightElement, onPress, showBorder = true }) => (
     <Pressable 
       style={({ pressed }) => [
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
           />
         </View>
       </View>
-
+      
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           About
@@ -189,6 +189,7 @@ export default function SettingsScreen() {
             rightElement={
               <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
             }
+            onPress={handlePrivacyPolicy}
             showBorder={true}
           />
           <SettingItem 

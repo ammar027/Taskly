@@ -46,15 +46,15 @@ export const CategorySelectionModal = ({ visible, onClose, onSelectCategory, cur
 
   // Create theme-based colors
   const colors = {
-    modalBackground: isDarkMode ? '#1E293B' : '#FFFFFF',
-    modalOverlay: isDarkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+    modalBackground: isDarkMode ? '#1E1E1E' : '#FFFFFF',
+    modalOverlay: isDarkMode ? '1E1E1E' : 'rgba(0, 0, 0, 0.5)',
     text: {
       primary: isDarkMode ? '#F1F5F9' : '#1E293B',
       secondary: isDarkMode ? '#94A3B8' : '#64748B',
     },
-    border: isDarkMode ? '#334155' : '#E2E8F0',
+    border: isDarkMode ? 'rgb(123, 123, 123)' : '#E2E8F0',
     itemBackground: isDarkMode ? '#0F172A' : '#FFFFFF',
-    pressedState: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+    pressedState: isDarkMode ? 'rgb(66, 66, 66)' : 'rgba(0, 0, 0, 0.05)',
     closeIcon: isDarkMode ? '#94A3B8' : '#64748B',
   }
 

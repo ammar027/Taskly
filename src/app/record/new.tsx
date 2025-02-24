@@ -363,7 +363,7 @@ const NewTask = () => {
           console.log("Note saved to storage, now navigating...")
           // Then navigate with params
           router.replace({
-            pathname: "/",
+            pathname: "/(tabs)",
             params: {
               newNote: JSON.stringify(noteData),
               timestamp: Date.now(),

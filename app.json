@@ -32,10 +32,7 @@
               "scheme": "taskly"
             }
           ],
-          "category": [
-            "android.intent.category.DEFAULT",
-            "android.intent.category.BROWSABLE"
-          ]
+          "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
         }
       ]
     },
@@ -51,6 +48,7 @@
     "plugins": [
       "expo-localization",
       "expo-font",
+      "expo-audio",
       [
         "expo-splash-screen",
         {
@@ -84,6 +82,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "OPENAI_API_KEY": "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",
       "router": {
         "origin": false
       },

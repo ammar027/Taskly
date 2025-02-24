@@ -59,7 +59,7 @@ export default function RemindersScreen() {
     accentLight: isDarkMode ? "rgba(99, 102, 241, 0.15)" : "rgba(224, 231, 255, 0.6)",
     accentBorder: isDarkMode ? "#4F46E5" : "#DDD6FE",
     modalBackground: isDarkMode ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.5)",
-    modalOverlay: isDarkMode ? "#1A202C" : "#ffffff",
+    modalOverlay: isDarkMode ? "#1E1E1E" : "#ffffff",
     deleteBackground: isDarkMode ? "#1A1818" : "#fef2f2",
     deleteBorder: isDarkMode ? "#991B1B" : "#fecaca",
     deleteText: isDarkMode ? "#F87171" : "#DC2626",
@@ -560,7 +560,7 @@ export default function RemindersScreen() {
                 styles.timingButtonText,
                 { 
                   fontWeight: reminderTime === minutes ? "700" : "500",
-                  color: colors.accent
+                  color: colors.text
                 },
               ]}>
                 {minutes} min
@@ -781,7 +781,8 @@ export default function RemindersScreen() {
                           color={colors.deleteText}
                           style={{ marginRight: 8 }}
                         />
-                        <Text style={styles.deleteButtonText}>Delete Reminder</Text>
+                        <Text style={[styles.deleteButtonText, { color: colors.text }]}>Delete Reminder</Text>
+
                       </TouchableOpacity>
                     )}
 

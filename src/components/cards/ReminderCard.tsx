@@ -1,9 +1,9 @@
-// ReminderCard.js
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import Swipeable from "react-native-gesture-handler/Swipeable";
+import { useTheme } from "@/components/ThemeContext";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -15,17 +15,63 @@ export const ReminderCard = ({
   onDelete,
   swipeableRef 
 }) => {
+  const { isDarkMode } = useTheme();
+
+  // Theme-based colors
+  const colors = {
+    background: isDarkMode ? '#1E293B' : '#FFFFFF',
+    text: {
+      primary: isDarkMode ? '#F1F5F9' : '#1E293B',
+      secondary: isDarkMode ? '#94A3B8' : '#64748B',
+      completed: isDarkMode ? '#64748B' : '#94A3B8',
+    },
+    border: isDarkMode ? '#334155' : '#F1F5F9',
+    checkbox: {
+      background: isDarkMode ? '#1E293B' : '#FFFFFF',
+    },
+    notification: {
+      background: isDarkMode ? '#312E81' : '#EEF2FF',
+      icon: isDarkMode ? '#818CF8' : '#4F46E5',
+    },
+    deleteAction: {
+      background: isDarkMode ? '#7F1D1D' : '#FEE2E2',
+      border: isDarkMode ? '#991B1B' : '#FECACA',
+      text: isDarkMode ? '#FCA5A5' : '#DC2626',
+    },
+  };
+
   const renderRightActions = () => (
     <Pressable 
       style={styles.deleteAction}
       onPress={() => onDelete(item.id)}
     >
-      <View style={styles.deleteActionContent}>
-        <Ionicons name="trash-outline" size={24} color="#DC2626" />
-        <Text style={styles.deleteActionText}>Delete</Text>
+      <View style={[
+        styles.deleteActionContent,
+        {
+          backgroundColor: colors.deleteAction.background,
+          borderColor: colors.deleteAction.border,
+        }
+      ]}>
+        <Ionicons name="trash-outline" size={24} color={colors.deleteAction.text} />
+        <Text style={[
+          styles.deleteActionText,
+          { color: colors.deleteAction.text }
+        ]}>Delete</Text>
       </View>
     </Pressable>
   );
+
+  // Adjust opacity for item background color based on theme
+  const getBackgroundColor = () => {
+    const opacity = isDarkMode ? '15' : '15';
+    return `${item.color}${opacity}`;
+  };
+
+  // Adjust category chip background opacity based on theme
+  const getCategoryChipBackground = () => {
+    const opacity = isDarkMode ? '25' : '15';
+    return `${item.color}${opacity}`;
+  };
 
   return (
     <Swipeable
@@ -35,7 +81,13 @@ export const ReminderCard = ({
       friction={2}
     >
       <AnimatedPressable
-        style={[styles.card, { backgroundColor: `${item.color}08` }]}
+        style={[
+          styles.card,
+          {
+            backgroundColor: getBackgroundColor(),
+            borderColor: colors.border,
+          }
+        ]}
         entering={FadeInUp.delay(index * 100)}
         onPress={() => onEdit(item)}
       >
@@ -44,8 +96,10 @@ export const ReminderCard = ({
             <Pressable 
               style={[
                 styles.checkbox,
-                item.completed && styles.checkboxChecked,
-                { borderColor: item.color }
+                { 
+                  borderColor: item.color,
+                  backgroundColor: item.completed ? item.color : colors.checkbox.background
+                }
               ]}
               onPress={() => onToggleComplete(item.id)}
               hitSlop={10}
@@ -59,7 +113,11 @@ export const ReminderCard = ({
               <Text 
                 style={[
                   styles.title,
-                  item.completed && styles.completedText
+                  { color: colors.text.primary },
+                  item.completed && [
+                    styles.completedText,
+                    { color: colors.text.completed }
+                  ]
                 ]}
                 numberOfLines={1}
               >
@@ -67,12 +125,15 @@ export const ReminderCard = ({
               </Text>
               
               <View style={styles.metaContainer}>
-                <Text style={styles.date}>{item.date}</Text>
+                <Text style={[
+                  styles.date,
+                  { color: colors.text.secondary }
+                ]}>{item.date}</Text>
                 <View style={styles.tagsContainer}>
                   <View 
                     style={[
                       styles.categoryChip,
-                      { backgroundColor: `${item.color}15` }
+                      { backgroundColor: getCategoryChipBackground() }
                     ]}
                   >
                     <Ionicons 
@@ -88,7 +149,7 @@ export const ReminderCard = ({
                   <View 
                     style={[
                       styles.priorityChip,
-                      { backgroundColor: getPriorityColor(item.priority) }
+                      { backgroundColor: getPriorityColor(item.priority, isDarkMode) }
                     ]}
                   >
                     <Text style={styles.priorityText}>
@@ -101,8 +162,15 @@ export const ReminderCard = ({
           </View>
 
           {item.notificationId && !item.completed && (
-            <View style={styles.notificationBadge}>
-              <Ionicons name="notifications" size={12} color="#4F46E5" />
+            <View style={[
+              styles.notificationBadge,
+              { backgroundColor: colors.notification.background }
+            ]}>
+              <Ionicons 
+                name="notifications" 
+                size={12} 
+                color={colors.notification.icon}
+              />
             </View>
           )}
         </View>
@@ -111,11 +179,30 @@ export const ReminderCard = ({
   );
 };
 
-const getPriorityColor = (priority) => {
+const getPriorityColor = (priority, isDarkMode) => {
+  // Adjusted colors for dark mode
+  const colors = {
+    high: {
+      light: '#DC2626',
+      dark: '#991B1B'
+    },
+    medium: {
+      light: '#D97706',
+      dark: '#92400E'
+    },
+    low: {
+      light: '#059669',
+      dark: '#065F46'
+    }
+  };
+
   switch (priority) {
-    case 'high': return '#DC2626';
-    case 'medium': return '#D97706';
-    default: return '#059669';
+    case 'high':
+      return isDarkMode ? colors.high.dark : colors.high.light;
+    case 'medium':
+      return isDarkMode ? colors.medium.dark : colors.medium.light;
+    default:
+      return isDarkMode ? colors.low.dark : colors.low.light;
   }
 };
 
@@ -125,7 +212,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
   },
   cardContent: {
     flexDirection: 'row',
@@ -149,27 +235,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
-  },
-  checkboxChecked: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
   },
   completedText: {
     textDecorationLine: 'line-through',
-    color: '#94a3b8',
   },
   metaContainer: {
     gap: 8,
   },
   date: {
     fontSize: 13,
-    color: '#64748b',
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -203,7 +281,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -214,16 +291,13 @@ const styles = StyleSheet.create({
   },
   deleteActionContent: {
     flex: 1,
-    backgroundColor: '#fee2e2',
     borderWidth: 1,
-    borderColor: '#fecaca',
     marginVertical: 4,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteActionText: {
-    color: '#dc2626',
     fontSize: 12,
     fontWeight: '600',
     marginTop: 4,

@@ -11,7 +11,7 @@ export default function TabLayout() {
     tabBackground: isDarkMode ? '#121212' : '#ffffff',
     tabBorder: isDarkMode ? '#2c2c2c' : '#e5e5e5',
     headerBackground: isDarkMode ? '#121212' : '#ffffff',
-    activeTintColor: '#4F46E5', // Keep accent color the same for both themes
+    activeTintColor: '#4F46E5',
     inactiveTintColor: isDarkMode ? '#a0a0a0' : '#8E8E93',
     headerTintColor: isDarkMode ? '#e0e0e0' : '#1e293b',
   };
@@ -24,7 +24,7 @@ export default function TabLayout() {
           borderTopWidth: 0.3,
           borderTopColor: themeColors.tabBorder,
           height: Platform.OS === 'ios' ? 88 : 78,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
           paddingTop: 8,
         },
         tabBarActiveTintColor: themeColors.activeTintColor,
@@ -83,6 +83,18 @@ export default function TabLayout() {
           ),
         }}
       />
+      
+      {/* <Tabs.Screen
+        name="WakeWordScreen"
+        options={{
+          title: 'WakeWordScreen',
+          headerTitle: 'WakeWordScreen',
+          tabBarIcon: ({ size, color }) => (
+            <Ionicons name="mic-outline" size={size} color={color} />
+          ),
+        }}
+      /> */}
+
     </Tabs>
   );
 }

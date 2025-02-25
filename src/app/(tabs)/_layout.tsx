@@ -8,7 +8,7 @@ export default function TabLayout() {
   
   // Define theme colors
   const themeColors = {
-    tabBackground: isDarkMode ? '#121212' : '#ffffff',
+    tabBackground: isDarkMode ? 'rgb(30, 30, 30)' : '#ffffff',
     tabBorder: isDarkMode ? '#2c2c2c' : '#e5e5e5',
     headerBackground: isDarkMode ? '#121212' : '#ffffff',
     activeTintColor: '#4F46E5',
@@ -23,8 +23,8 @@ export default function TabLayout() {
           backgroundColor: themeColors.tabBackground,
           borderTopWidth: 0.3,
           borderTopColor: themeColors.tabBorder,
-          height: Platform.OS === 'ios' ? 88 : 78,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          height: Platform.OS === 'ios' ? 88 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
           paddingTop: 8,
         },
         tabBarActiveTintColor: themeColors.activeTintColor,

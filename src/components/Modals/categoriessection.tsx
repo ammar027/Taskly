@@ -23,11 +23,11 @@ import { useTheme } from "@/components/ThemeContext"
 // Define categories with improved accessibility and visual hierarchy
 export const CATEGORIES = [
   { id: "1", name: "Work", icon: "briefcase", color: "#4338CA", gradient: ["#4338CA", "#6366F1"] },
-  { id: "2", name: "Personal", icon: "person", color: "#047857", gradient: ["#047857", "#10B981"] },
+  { id: "2", name: "Tasks", icon: "person", color: "#047857", gradient: ["#047857", "#10B981"] },
   { id: "3", name: "Ideas", icon: "bulb", color: "#BE185D", gradient: ["#BE185D", "#EC4899"] },
   {
     id: "4",
-    name: "Tasks",
+    name: "Personal",
     icon: "checkmark-circle",
     color: "#B45309",
     gradient: ["#B45309", "#F59E0B"],

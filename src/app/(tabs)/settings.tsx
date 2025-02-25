@@ -24,6 +24,8 @@ export default function SettingsScreen() {
     rippleColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
   };
 
+  
+
   const handleThemeToggle = () => {
     if (theme === ThemeMode.SYSTEM) {
       setThemeMode(isDarkMode ? ThemeMode.LIGHT : ThemeMode.DARK);
@@ -34,8 +36,11 @@ export default function SettingsScreen() {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  };
 
+    setThemeKey(prevKey => prevKey + 1); // Force re-render
+  };
+  const [themeKey, setThemeKey] = useState(0);
+  
   const handleNotificationToggle = () => {
     setPushNotifications(prev => !prev);
     if (Platform.OS === 'ios') {

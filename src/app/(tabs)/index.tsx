@@ -145,7 +145,7 @@ const FAB = memo(({ theme }) => {
       style={[
         styles.fab, 
         { 
-          backgroundColor: theme.isDarkMode ? 'rgba(79, 70, 229, 0.3)' : 'rgb(78, 70, 229)',
+          backgroundColor: theme.isDarkMode ? 'rgb(27, 24, 95)' : 'rgb(78, 70, 229)',
           borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)'
         }
       ]} 
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   noteDate: { fontSize: 16, fontWeight: '500' },
   actionIcons: { flexDirection: 'row', gap: 12 },
   iconButton: { padding: 4 },
-  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 20, right: 20, borderRadius: 30, padding: 16, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
-  fabIcon: { marginRight: 8 },
-  fabText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 10, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
+  fabIcon: { marginRight: 6 },
+  fabText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

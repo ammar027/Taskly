@@ -108,7 +108,7 @@ export default function RootLayout() {
         subtitle: "Quickly create a new record",
         icon: Platform.select({
           ios: "symbol:square.and.pencil",
-          android: "add_note", 
+          android: "ic_appaction_foreground", 
         }),
         id: "record_item",
         params: { href: "/record/new" }
@@ -125,7 +125,6 @@ export default function RootLayout() {
       }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
-      <StatusBar style="auto" />
       </ThemeProvider>
     </>
   );

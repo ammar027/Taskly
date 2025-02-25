@@ -1,308 +1,359 @@
-// First, extract these from the component body to prevent recreating on each render
-const timingOptions = [5, 15, 30, 60]
-const priorities = ["low", "medium", "high"]
+import React, { useState, useRef } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  FlatList, 
+  Dimensions, 
+  Animated 
+} from 'react-native';
+import { Svg, Circle, Rect, Path, Text as SvgText } from 'react-native-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ModalContent = React.memo(({ 
-  colors,
-  title,
-  setTitle,
-  selectedDate,
-  setSelectedDate,
-  showDatePicker,
-  setShowDatePicker,
-  datePickerMode,
-  setDatePickerMode,
-  priority,
-  setPriority,
-  category,
-  setCategory,
-  reminderTime,
-  setReminderTime,
-  editMode,
-  currentReminder,
-  isDarkMode,
-  onSave,
-  onDelete,
-  onClose
-}) => {
-  const showDatePickerModal = useCallback((mode) => {
-    setDatePickerMode(mode)
-    setShowDatePicker(true)
-  }, [setDatePickerMode, setShowDatePicker])
+const { width, height } = Dimensions.get('window');
 
-  const onChangeDate = useCallback((event, selected) => {
-    if (selected) {
-      const currentDateTime = new Date(selectedDate)
-      
-      if (datePickerMode === "date") {
-        currentDateTime.setFullYear(selected.getFullYear())
-        currentDateTime.setMonth(selected.getMonth())
-        currentDateTime.setDate(selected.getDate())
-      } else {
-        currentDateTime.setHours(selected.getHours())
-        currentDateTime.setMinutes(selected.getMinutes())
-      }
-      
-      setSelectedDate(currentDateTime)
+const welcomeData = [
+  {
+    id: '1',
+    title: 'Welcome to Taskly',
+    description: 'The smarter way to manage your tasks and boost productivity',
+    buttonText: 'Next',
+  },
+  {
+    id: '2',
+    title: 'Stay Organized',
+    description: 'Create tasks, set priorities, and track your progress with ease',
+    buttonText: 'Next',
+  },
+  {
+    id: '3',
+    title: 'Get Started',
+    description: 'Join thousands of users who improved their productivity with Taskly',
+    buttonText: 'Get Started',
+  },
+];
+
+const WelcomeScreen = ({ navigation }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatListRef = useRef(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  const renderIllustration = (index) => {
+    switch (index) {
+      case 0:
+        return (
+          <View style={styles.illustrationContainer}>
+            <View style={[styles.circle, { backgroundColor: '#e6f0ff' }]}>
+              <View style={styles.taskIcon}>
+                <View style={[styles.checkbox, styles.checkedBox]}>
+                  <Text style={styles.checkmark}>✓</Text>
+                </View>
+                <View style={styles.taskLine} />
+                <View style={[styles.taskLine, { width: 80 }]} />
+              </View>
+            </View>
+            <View style={styles.taskRow}>
+              <View style={styles.checkbox} />
+              <View style={styles.taskLineContainer}>
+                <View style={styles.taskLine} />
+                <View style={[styles.taskLine, { width: 70 }]} />
+              </View>
+            </View>
+            <View style={styles.taskRow}>
+              <View style={styles.checkbox} />
+              <View style={styles.taskLineContainer}>
+                <View style={styles.taskLine} />
+                <View style={[styles.taskLine, { width: 90 }]} />
+              </View>
+            </View>
+          </View>
+        );
+      case 1:
+        return (
+          <View style={styles.illustrationContainer}>
+            <Svg width="200" height="200" viewBox="0 0 200 200">
+              <Circle cx="100" cy="100" r="60" fill="#e6f0ff" />
+              <Rect x="70" y="80" width="60" height="80" rx="5" fill="#4a6cfa" />
+              <Rect x="80" y="90" width="40" height="8" rx="4" fill="white" />
+              <Rect x="80" y="105" width="40" height="8" rx="4" fill="white" />
+              <Rect x="80" y="120" width="25" height="8" rx="4" fill="white" />
+              <Circle cx="140" cy="70" r="25" fill="#ff7e6b" />
+              <SvgText x="140" y="76" fontSize="20" fill="white" textAnchor="middle">3</SvgText>
+            </Svg>
+          </View>
+        );
+      case 2:
+        return (
+          <View style={styles.illustrationContainer}>
+            <Svg width="200" height="200" viewBox="0 0 200 200">
+              <Circle cx="100" cy="100" r="60" fill="#e6f0ff" />
+              <Path d="M70,100 L90,120 L130,80" stroke="#4a6cfa" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <Circle cx="160" cy="60" r="20" fill="#4BE1AB" />
+              <Rect x="70" y="140" width="60" height="10" rx="5" fill="#4a6cfa" opacity="0.5" />
+            </Svg>
+          </View>
+        );
+      default:
+        return null;
     }
-    
-    if (Platform.OS === "android") setShowDatePicker(false)
-  }, [selectedDate, datePickerMode, setSelectedDate, setShowDatePicker])
+  };
 
-  const getPriorityColors = useCallback((priorityValue) => {
-    const priorities = {
-      low: { light: "#059669", dark: "#34D399" },
-      medium: { light: "#D97706", dark: "#FBBF24" },
-      high: { light: "#DC2626", dark: "#F87171" }
-    };
-    return isDarkMode ? priorities[priorityValue].dark : priorities[priorityValue].light;
-  }, [isDarkMode])
+  const handleNext = () => {
+    if (currentIndex < welcomeData.length - 1) {
+      flatListRef.current.scrollToIndex({
+        index: currentIndex + 1,
+        animated: true,
+      });
+    } else {
+      // Complete onboarding
+      completeOnboarding();
+    }
+  };
+
+  const handleSkip = async () => {
+    completeOnboarding();
+  };
+
+  const completeOnboarding = async () => {
+    try {
+      // Mark onboarding as completed
+      await AsyncStorage.setItem('@taskly_onboarding_completed', 'true');
+      // Navigate to the main app (you'll need to adjust this based on your navigation structure)
+      navigation.replace('Main');
+    } catch (error) {
+      console.error('Error saving onboarding status:', error);
+    }
+  };
+
+  const renderItem = ({ item, index }) => {
+    return (
+      <View style={styles.slide}>
+        {renderIllustration(index)}
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.description}>{item.description}</Text>
+        </View>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleNext}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>{item.buttonText}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderDots = () => {
+    return (
+      <View style={styles.dotContainer}>
+        {welcomeData.map((_, index) => {
+          const inputRange = [
+            (index - 1) * width,
+            index * width,
+            (index + 1) * width,
+          ];
+          
+          const dotWidth = scrollX.interpolate({
+            inputRange,
+            outputRange: [8, 20, 8],
+            extrapolate: 'clamp',
+          });
+          
+          const opacity = scrollX.interpolate({
+            inputRange,
+            outputRange: [0.3, 1, 0.3],
+            extrapolate: 'clamp',
+          });
+          
+          const backgroundColor = scrollX.interpolate({
+            inputRange,
+            outputRange: ['#ccc', '#4a6cfa', '#ccc'],
+            extrapolate: 'clamp',
+          });
+          
+          return (
+            <Animated.View
+              key={index}
+              style={[
+                styles.dot,
+                {
+                  width: dotWidth,
+                  opacity,
+                  backgroundColor,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+    );
+  };
 
   return (
-    <View style={[styles.modalContent, { 
-      backgroundColor: colors.modalOverlay,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24
-    }]}>
-      <View style={[styles.modalHeader, { borderBottomColor: colors.cardBorder }]}>
-        <Text style={[styles.modalTitle, { color: colors.text }]}>
-          {editMode ? "Edit Reminder" : "New Reminder"}
-        </Text>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={onClose}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={24} color={colors.subText} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        style={styles.formScrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        overScrollMode="never"
-        bounces={false}
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.skipButton}
+        onPress={handleSkip}
+        activeOpacity={0.7}
       >
-        <View style={styles.form}>
-          {/* Title Input */}
-          <View style={styles.formGroup}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Title</Text>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: colors.input,
-                borderColor: colors.inputBorder,
-                color: colors.text
-              }]}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Enter reminder title"
-              placeholderTextColor={colors.subText}
-              autoFocus={!editMode}
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* Date & Time */}
-          <View style={styles.formGroup}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Date & Time</Text>
-            <View style={styles.dateTimeButtons}>
-              <TouchableOpacity 
-                style={[styles.dateButton, { 
-                  backgroundColor: colors.accentLight, 
-                  borderColor: colors.accentBorder 
-                }]} 
-                onPress={() => showDatePickerModal("date")}
-              >
-                <Ionicons name="calendar-outline" size={20} color={colors.accent} />
-                <Text style={[styles.dateButtonText, { color: colors.accent }]}>
-                  {format(selectedDate, "EEE, MMM d, yyyy")}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.dateButton, { 
-                  backgroundColor: colors.accentLight, 
-                  borderColor: colors.accentBorder 
-                }]} 
-                onPress={() => showDatePickerModal("time")}
-              >
-                <Ionicons name="time-outline" size={20} color={colors.accent} />
-                <Text style={[styles.dateButtonText, { color: colors.accent }]}>
-                  {format(selectedDate, "h:mm a")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {showDatePicker && (
-              <View style={[styles.datePickerContainer, { 
-                backgroundColor: isDarkMode ? "#374151" : "#f8fafc" 
-              }]}>
-                <DateTimePicker
-                  testID="dateTimePicker"
-                  value={selectedDate}
-                  mode={datePickerMode}
-                  is24Hour={false}
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onChangeDate}
-                  style={styles.datePicker}
-                  textColor={isDarkMode ? "#f9fafb" : undefined}
-                  themeVariant={isDarkMode ? "dark" : "light"}
-                />
-                {Platform.OS === "ios" && (
-                  <View style={[styles.datePickerButtons, { 
-                    backgroundColor: isDarkMode ? "#1f2937" : "#f1f5f9" 
-                  }]}>
-                    <TouchableOpacity
-                      style={styles.datePickerButton}
-                      onPress={() => setShowDatePicker(false)}
-                    >
-                      <Text style={[styles.datePickerButtonText, { color: colors.accent }]}>
-                        Done
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* Reminder Timing */}
-          <View style={styles.notificationTimingSelector}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Remind me before:</Text>
-            <View style={styles.timingButtons}>
-              {timingOptions.map(minutes => (
-                <TouchableOpacity
-                  key={minutes}
-                  style={[styles.timingButton, {
-                    backgroundColor: reminderTime === minutes ? `${colors.accent}20` : "transparent",
-                    borderColor: colors.accent,
-                    borderWidth: reminderTime === minutes ? 2 : 1,
-                  }]}
-                  onPress={() => setReminderTime(minutes)}
-                >
-                  <Text style={[styles.timingButtonText, { 
-                    fontWeight: reminderTime === minutes ? "700" : "500",
-                    color: colors.text
-                  }]}>
-                    {minutes} min
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Priority Selection */}
-          <View style={styles.prioritySelector}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Priority:</Text>
-            <View style={styles.priorityButtons}>
-              {priorities.map(p => {
-                const buttonColor = getPriorityColors(p);
-                return (
-                  <TouchableOpacity
-                    key={p}
-                    style={[styles.priorityButton, { 
-                      backgroundColor: priority === p ? buttonColor : "transparent",
-                      borderColor: buttonColor 
-                    }]}
-                    onPress={() => setPriority(p)}
-                  >
-                    <Text style={[styles.priorityButtonText, { 
-                      color: priority === p ? (isDarkMode ? "#000000" : "#ffffff") : buttonColor 
-                    }]}>
-                      {p.charAt(0).toUpperCase() + p.slice(1)} {PRIORITY_EMOJIS[p]}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Category Selection */}
-          <View style={styles.categorySelector}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Category:</Text>
-            <View style={styles.categoryButtons}>
-              {CATEGORIES.map(cat => {
-                const catColor = isDarkMode ? cat.darkColor : cat.color;
-                return (
-                  <TouchableOpacity
-                    key={cat.name}
-                    style={[styles.categoryButton, {
-                      backgroundColor: category === cat.name ? `${catColor}20` : "transparent",
-                      borderColor: catColor,
-                      borderWidth: category === cat.name ? 2 : 1,
-                    }]}
-                    onPress={() => setCategory(cat.name)}
-                  >
-                    <Ionicons 
-                      name={cat.icon} 
-                      size={16} 
-                      color={catColor} 
-                      style={styles.categoryIcon} 
-                    />
-                    <Text style={[styles.categoryButtonText, { color: catColor }]}>
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Action Buttons */}
-          <TouchableOpacity 
-            style={[styles.saveButton, { backgroundColor: colors.accent }]} 
-            onPress={onSave}
-          >
-            <Text style={styles.saveButtonText}>
-              {editMode ? "Update Reminder" : "Add Reminder"}
-            </Text>
-          </TouchableOpacity>
-
-          {editMode && (
-            <TouchableOpacity
-              style={[styles.deleteButton, {
-                borderColor: colors.deleteBorder,
-                backgroundColor: colors.deleteBackground
-              }]}
-              onPress={() => {
-                onClose()
-                setTimeout(() => onDelete(currentReminder.id), 300)
-              }}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={18}
-                color={colors.deleteText}
-                style={{ marginRight: 8 }}
-              />
-              <Text style={[styles.deleteButtonText, { color: colors.deleteText }]}>
-                Delete Reminder
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.bottomPadding} />
-        </View>
-      </ScrollView>
+        <Text style={styles.skipText}>Skip</Text>
+      </TouchableOpacity>
+      
+      <FlatList
+        ref={flatListRef}
+        data={welcomeData}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        onMomentumScrollEnd={(event) => {
+          const newIndex = Math.round(
+            event.nativeEvent.contentOffset.x / width
+          );
+          setCurrentIndex(newIndex);
+        }}
+        scrollEventThrottle={16}
+      />
+      
+      {renderDots()}
     </View>
-  )
-})
+  );
+};
 
-// Updated styles
 const styles = StyleSheet.create({
-  // ... (keep existing styles)
-  
-  scrollContent: {
-    flexGrow: 1,
-  },
-  
-  modalContent: {
-    maxHeight: '90%',
-  },
-  
-  formScrollView: {
+  container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-})
+  slide: {
+    width,
+    height,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  skipButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  skipText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  illustrationContainer: {
+    width: 200,
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  circle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  taskIcon: {
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#4a6cfa',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkedBox: {
+    backgroundColor: '#4a6cfa',
+  },
+  checkmark: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  taskLine: {
+    width: 100,
+    height: 3,
+    backgroundColor: '#ddd',
+    marginTop: 5,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  taskLineContainer: {
+    marginLeft: 10,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginBottom: 60,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 20,
+  },
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    position: 'absolute',
+    bottom: 200,
+    width: '100%',
+  },
+  dot: {
+    height: 8,
+    width: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 100,
+    width: '100%',
+    alignItems: 'center',
+  },
+  button: {
+    backgroundColor: '#4a6cfa',
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export default WelcomeScreen;

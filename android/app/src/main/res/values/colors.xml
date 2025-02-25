@@ -1,7 +1,7 @@
 <resources>
-  <color name="splashscreen_background">#191015</color>
-  <color name="iconBackground">#ffffff</color>
+  <color name="splashscreen_background">#ecedee</color>
+  <color name="iconBackground">#ecedee</color>
   <color name="colorPrimary">#023c69</color>
-  <color name="colorPrimaryDark">#191015</color>
+  <color name="colorPrimaryDark">#ecedee</color>
   <color name="ic_appaction_background_color">#000</color>
 </resources>

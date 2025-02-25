@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Modal, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useEffect, useState, useCallback } from 'react';
@@ -9,9 +9,9 @@ import { useTheme } from '@/components/ThemeContext';
 const STORAGE_KEY = 'notes_data';
 const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Work', icon: 'briefcase', color: '#4F46E5', gradient: ['#4F46E5', '#6366F1'] },
-  { id: '2', name: 'Personal', icon: 'person', color: '#059669', gradient: ['#059669', '#10B981'] },
+  { id: '2', name: 'Tasks', icon: 'person', color: '#059669', gradient: ['#059669', '#10B981'] },
   { id: '3', name: 'Ideas', icon: 'bulb', color: '#DB2777', gradient: ['#DB2777', '#EC4899'] },
-  { id: '4', name: 'Tasks', icon: 'checkmark-circle', color: '#D97706', gradient: ['#D97706', '#F59E0B'] },
+  { id: '4', name: 'Personal', icon: 'checkmark-circle', color: '#D97706', gradient: ['#D97706', '#F59E0B'] },
   { id: '5', name: 'Projects', icon: 'folder', color: '#7C3AED', gradient: ['#7C3AED', '#8B5CF6'] },
   { id: '6', name: 'Meetings', icon: 'people', color: '#BE123C', gradient: ['#BE123C', '#E11D48'] },
   { id: '7', name: 'Notes', icon: 'document-text', color: '#4F46E5', gradient: ['#4F46E5', '#6366F1'] },
@@ -21,6 +21,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CategoryNotesList = ({ notes, category, onClose }) => {
   const { isDarkMode } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
   
   // Create theme colors
   const themeColors = {
@@ -33,6 +34,14 @@ const CategoryNotesList = ({ notes, category, onClose }) => {
   };
   
   const filteredNotes = notes.filter(note => note.category === category.name);
+  
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Simulate a refresh - in a real app, you would re-fetch notes here
+    setTimeout(() => setRefreshing(false), 1000);
+    // If you have a function to reload notes, call it here
+    // onClose(); // If you want to close and reload from parent
+  }, []);
   
   return (
     <Modal
@@ -60,7 +69,16 @@ const CategoryNotesList = ({ notes, category, onClose }) => {
           <FlatList
             data={filteredNotes}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={styles.notesListContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={themeColors.textSecondary}
+                colors={[category.color]}
+                progressBackgroundColor={themeColors.cardBackground}
+              />
+            }
             renderItem={({ item, index }) => (
               <AnimatedPressable 
                 style={[
@@ -94,6 +112,7 @@ export default function CategoriesScreen() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { isDarkMode } = useTheme();
   
   // Create theme colors
@@ -126,6 +145,7 @@ export default function CategoriesScreen() {
       setCategories(DEFAULT_CATEGORIES.map(cat => ({...cat, count: 0})));
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -174,6 +194,15 @@ export default function CategoriesScreen() {
     setSelectedCategory(null);
   };
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadNotes();
+  }, []);
+
+  // Calculate how many items to render per row based on screen size
+  // We always want 2 columns for categories
+  const numColumns = 2;
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
@@ -190,16 +219,26 @@ export default function CategoriesScreen() {
         <FlatList
           data={categories}
           keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.listContainer}
+          numColumns={numColumns}
+          contentContainerStyle={styles.categoriesListContainer}
           columnWrapperStyle={styles.columnWrapper}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={themeColors.textSecondary}
+              colors={['#4F46E5', '#059669', '#DB2777']}
+              progressBackgroundColor={themeColors.cardBackground}
+            />
+          }
           renderItem={({ item, index }) => (
             <AnimatedPressable 
               style={[
                 styles.categoryCard, 
                 { 
                   backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
-                  borderColor: themeColors.border
+                  borderColor: themeColors.border,
+                  width: `${100 / numColumns - 3.5}%`, // Calculate width based on numColumns with margin
                 }
               ]}
               entering={FadeInUp.delay(index * 100)}
@@ -234,11 +273,16 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
   headerSubtitle: { fontSize: 15, fontWeight: '500' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  listContainer: { padding: 12 },
-  columnWrapper: { justifyContent: 'space-between' },
+  categoriesListContainer: { padding: 15 },
+  notesListContainer: { padding: 20 },
+  columnWrapper: { justifyContent: 'space-around', marginBottom: 14 },
   categoryCard: {
-    flex: 1, aspectRatio: 1, borderRadius: 20, padding: 16, margin: 7, alignItems: 'center',
-    justifyContent: 'center', borderWidth: 1,
+    aspectRatio: 1, 
+    borderRadius: 20, 
+    padding: 16, 
+    alignItems: 'center',
+    justifyContent: 'center', 
+    borderWidth: 1,
   },
   iconContainer: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   categoryName: { fontSize: 17, fontWeight: '600', marginBottom: 4, textAlign: 'center' },

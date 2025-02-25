@@ -8,7 +8,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/images/app-icon-all.png",
+    "icon": "./assets/icons/icon.png",
     "updates": {
       "fallbackToCacheTimeout": 0
     },
@@ -16,12 +16,12 @@
     "jsEngine": "hermes",
     "assetBundlePatterns": ["**/*"],
     "android": {
-      "icon": "./assets/images/app-icon-android-legacy.png",
       "package": "com.taskly",
       "permissions": ["RECORD_AUDIO"],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
-        "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon-dark.png",
+        "backgroundColor": "#ecedee"
       },
       "intentFilters": [
         {
@@ -50,12 +50,19 @@
       "expo-font",
       "expo-audio",
       [
+        "react-native-edge-to-edge"
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/images/app-icon-android-adaptive-foreground.png",
-          "imageWidth": 300,
+          "image": "./assets/icons/splash-icon-light.png",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#191015"
+          "backgroundColor": "#ecedee",
+          "dark": {
+            "image": "./assets/icons/splash-icon-light.png",
+            "backgroundColor": "#151718"
+          }
         }
       ],
       "expo-router",

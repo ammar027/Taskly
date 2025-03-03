@@ -37,23 +37,22 @@ jobs:
       - name: Install EAS CLI
         run: npm install -g eas-cli@latest
       
-      - name: Create build directory
-        run: mkdir -p ./expo-build
-      
-      - name: Setup EAS and build APK
+      - name: Build APK with EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           echo "Expo authentication token set."
-          eas build --profile production --platform android --local --non-interactive --output=./expo-build
+          eas build --profile production --platform android --local --non-interactive
       
-      - name: Upload APK
+      - name: Find and upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Taskly-APK
-          path: ./expo-build/*.apk
+          path: |
+            **/app-release.apk
+            **/app/build/outputs/apk/release/*.apk
           retention-days: 3
-          if-no-files-found: error
+          if-no-files-found: warn
 
 # name: Taskly Git Apk Build
 

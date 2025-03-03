@@ -44,15 +44,13 @@ jobs:
           echo "Expo authentication token set."
           eas build --profile production --platform android --local --non-interactive
       
-      - name: Find and upload APK
-        uses: actions/upload-artifact@v4
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v3
         with:
-          name: Taskly-APK
-          path: |
-            **/app-release.apk
-            **/app/build/outputs/apk/release/*.apk
-          retention-days: 3
-          if-no-files-found: warn
+          name: android-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 5 # Limit retention to save space
 
 # name: Taskly Git Apk Build
 

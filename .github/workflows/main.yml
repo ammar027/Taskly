@@ -1,0 +1,42 @@
+name: Taskly APK Build
+
+on:
+  push:
+    branches:
+      - main  # Adjust as needed
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install EAS CLI
+        run: yarn global add eas-cli
+
+      - name: Authenticate with Expo
+        run: eas login --token ${{ secrets.EXPO_TOKEN }}
+
+      - name: Initialize EAS (if not already initialized)
+        run: eas init || echo "EAS already initialized"
+
+      - name: Build APK Locally
+        run: eas build --profile production --platform android --local
+
+      - name: Upload APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Expo-APK
+          path: ./build/**/*.apk  # Adjust the path if necessary

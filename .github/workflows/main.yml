@@ -42,13 +42,13 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           echo "Expo authentication token set."
-          eas build --profile production --platform android --local --non-interactive
+          eas build --profile production --platform android --local --non-interactive --output=./expo-build
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Expo-APK
-          path: ./build/**/*.apk
+          name: Taskly-APK
+          path: ./expo-build/*.apk
           retention-days: 3
           if-no-files-found: error
 

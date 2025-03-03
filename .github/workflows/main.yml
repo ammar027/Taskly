@@ -2,45 +2,99 @@ name: Taskly Git Apk Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
         with:
-          node-version: 18
+          fetch-depth: 1
+      
+      - name: Setup Node.js and Yarn cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
           cache: 'yarn'
-
-      - name: Install Dependencies
-        run: yarn install --frozen-lockfile
-
+      
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      
+      - name: Cache yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --prefer-offline --network-timeout 300000
+      
       - name: Install EAS CLI
-        run: yarn global add eas-cli
-
-      - name: Authenticate with Expo (Using EXPO_TOKEN)
+        run: npm install -g eas-cli@latest
+      
+      - name: Setup EAS and build APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: echo "Expo authentication token set."
-
-      - name: Initialize EAS (if needed)
-        run: eas init || echo "EAS already initialized"
-
-      - name: Build APK Locally
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build --profile production --platform android --local
-
-      - name: Upload APK as Artifact
+        run: |
+          echo "Expo authentication token set."
+          eas build --profile production --platform android --local --non-interactive
+      
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Expo-APK
-          path: ./build/**/*.apk  # Adjust path if needed
+          path: ./build/**/*.apk
+          retention-days: 3
+          if-no-files-found: error
+
+# name: Taskly Git Apk Build
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: 18
+#           cache: 'yarn'
+
+#       - name: Install Dependencies
+#         run: yarn install --frozen-lockfile
+
+#       - name: Install EAS CLI
+#         run: yarn global add eas-cli
+
+#       - name: Authenticate with Expo (Using EXPO_TOKEN)
+#         env:
+#           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+#         run: echo "Expo authentication token set."
+
+#       - name: Initialize EAS (if needed)
+#         run: eas init || echo "EAS already initialized"
+
+#       - name: Build APK Locally
+#         env:
+#           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+#         run: eas build --profile production --platform android --local
+
+#       - name: Upload APK as Artifact
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: Expo-APK
+#           path: ./build/**/*.apk  # Adjust path if needed

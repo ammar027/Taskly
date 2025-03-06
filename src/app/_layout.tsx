@@ -7,10 +7,15 @@ import * as QuickActions from "expo-quick-actions";
 import { Platform, Linking } from 'react-native';
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { router } from 'expo-router';
-import { ThemeProvider } from '@/components/ThemeContext';
+import { ThemeProvider, useTheme } from '@/components/ThemeContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { NavigationBarThemeHandler } from '@/components/NavigationBarThemeHandeler'; // Import the new component
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function RootLayout() {
+// Create a child component that will have access to the theme context
+function AppContent() {
+  const { isDarkMode } = useTheme();
+
   // Set up automatic routing for Quick Actions
   useQuickActionRouting();
 
@@ -119,16 +124,33 @@ export default function RootLayout() {
 
   return (
     <>
-    <ThemeProvider>
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack screenOptions={{ 
-        headerShown: false,
-        contentStyle: { backgroundColor: '#f5f5f5' }
-      }}>
-        <Stack.Screen name="(tabs)" />
-      </Stack>
+    
+      {/* Include NavigationBarThemeHandler here */}
+      <NavigationBarThemeHandler />
+      
+      {/* Set StatusBar appearance based on theme */}
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
+      
+      <GestureHandlerRootView style={{ flex: 1 }}>
+      
+        <Stack screenOptions={{ 
+          headerShown: false,
+          contentStyle: { backgroundColor: isDarkMode ? '#121212' : '#f5f5f5' }
+        }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
+        </Stack>
+      
       </GestureHandlerRootView>
-      </ThemeProvider>
-    </>
+      </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }

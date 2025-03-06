@@ -8605,6 +8605,11 @@ react-native-edge-to-edge@^1.4.3:
   resolved "https://registry.yarnpkg.com/react-native-edge-to-edge/-/react-native-edge-to-edge-1.4.3.tgz#755c77f9bee94392166a7bdf46618886b54e0c77"
   integrity sha512-fYchwiQ2D/8NzcvJK1sD9Cm25GFQfsLgYmGpohoSpRxwBwR5UCL0wUf4scoQgYncRh9Hmc2t8ml/sikTwMM3ng==
 
+react-native-exit-app@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/react-native-exit-app/-/react-native-exit-app-2.0.0.tgz#21d523580f0c1bf6793bc4e6d5771ba9347cd8e4"
+  integrity sha512-vr9e/8jgPcKCBw6qo0QLxfeMiTwExydghbYDqpLZYAGWR+6cbgnhvOxwdYj/JWR7ZtOALrRA4GMGSvU/ayxM7w==
+
 react-native-gesture-handler@~2.20.2:
   version "2.20.2"
   resolved "https://registry.npmjs.org/react-native-gesture-handler/-/react-native-gesture-handler-2.20.2.tgz"

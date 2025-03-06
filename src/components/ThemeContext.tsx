@@ -19,15 +19,15 @@ export const ThemeContext = createContext({
 export const ThemeProvider = ({ children }) => {
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeMode] = useState(ThemeMode.SYSTEM);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Derive the actual dark/light state based on theme mode and system preference
   const isDarkMode = 
     themeMode === ThemeMode.DARK || 
     (themeMode === ThemeMode.SYSTEM && systemColorScheme === 'dark');
   
-// Add console logging to better trace theme changes
-useEffect(() => {
-    // Add this line to debug when preferences load
+  // Load theme preference and respond to system color scheme changes
+  useEffect(() => {
     console.log('Loading theme preference, current system theme:', systemColorScheme);
     
     const loadThemePreference = async () => {
@@ -37,16 +37,18 @@ useEffect(() => {
         if (savedTheme) {
           setThemeMode(savedTheme);
         }
+        setIsInitialized(true);
       } catch (error) {
         console.error('Failed to load theme preference:', error);
+        setIsInitialized(true);
       }
     };
     
     loadThemePreference();
-  }, []);
+  }, [systemColorScheme]); // Added systemColorScheme as dependency to react to system changes
   
   // Save theme preference whenever it changes
-useEffect(() => {
+  useEffect(() => {
     console.log('Saving theme mode:', themeMode);
     const saveThemePreference = async () => {
       try {
@@ -56,8 +58,11 @@ useEffect(() => {
       }
     };
     
-    saveThemePreference();
-  }, [themeMode]);
+    // Only save if it's initialized (prevents overwriting during first load)
+    if (isInitialized) {
+      saveThemePreference();
+    }
+  }, [themeMode, isInitialized]);
   
   // Simple toggle between light and dark (doesn't touch system)
   const toggleTheme = () => {
@@ -65,6 +70,11 @@ useEffect(() => {
       prevMode === ThemeMode.DARK ? ThemeMode.LIGHT : ThemeMode.DARK
     );
   };
+  
+  // Don't render children until theme is determined
+  if (!isInitialized) {
+    return null; // or return a loading indicator
+  }
   
   return (
     <ThemeContext.Provider 
@@ -80,5 +90,4 @@ useEffect(() => {
   );
 };
 
-// Custom hook for easy theme access
 export const useTheme = () => useContext(ThemeContext);

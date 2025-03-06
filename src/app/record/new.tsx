@@ -27,12 +27,13 @@ import LottieView from "lottie-react-native"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useTheme } from "@/components/ThemeContext"
-
+import RNExitApp from "react-native-exit-app"
+import { NavigationBarThemeHandler } from '@/components/NavigationBarThemeHandeler'
+import { SafeAreaFrameContext, SafeAreaView } from "react-native-safe-area-context"
 const { width } = Dimensions.get("window")
-const SPEECH_TIMEOUT = 16000
-const AUTO_SAVE_COUNTDOWN = 1 // 5 seconds for auto-save
-const AUTO_CONFIRM_TIMEOUT = 5000
-
+const SPEECH_TIMEOUT = 13000
+const AUTO_SAVE_COUNTDOWN = 1 // 1 second for auto-save
+const AUTO_CONFIRM_TIMEOUT = 3000
 const NewTask = () => {
   const { colors } = usePaperTheme()
   const { isDarkMode } = useTheme() // Access dark mode state
@@ -42,22 +43,21 @@ const NewTask = () => {
       const onBackPress = () => {
         router.replace({
           pathname: "/(tabs)",
-        });
-        return true; // Prevents default back behavior
-      };
-  
-      BackHandler.addEventListener('hardwareBackPress', onBackPress);
-  
+        })
+        return true // Prevents default back behavior
+      }
+      BackHandler.addEventListener("hardwareBackPress", onBackPress)
       return () => {
-        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-      };
-    }, [router])
-  );
+        BackHandler.removeEventListener("hardwareBackPress", onBackPress)
+      }
+    }, [router]),
+  )
   const params = useLocalSearchParams<{
     content: string
     priority: string
     assistantRequest: string
     autoStart: string
+    returnToTabs: string
   }>()
   const [recognizing, setRecognizing] = useState(false)
   const [currentStep, setCurrentStep] = useState(0) // 0: title, 1: summary
@@ -85,8 +85,8 @@ const NewTask = () => {
   const [autoConfirmCountdown, setAutoConfirmCountdown] = useState(null)
   const [autoConfirmTimer, setAutoConfirmTimer] = useState(null)
 
-  // Dark mode theme colors
   const theme = {
+    // Dark mode theme colors
     background: isDarkMode ? "#121212" : colors.background,
     surface: isDarkMode ? "#1E1E1E" : colors.surface,
     text: isDarkMode ? "#E1E1E1" : "#1e293b",
@@ -105,15 +105,13 @@ const NewTask = () => {
     autoSaveBg: isDarkMode ? "rgba(40, 45, 55, 0.8)" : "rgba(240, 245, 250, 0.8)",
     autoSaveBorder: isDarkMode ? "rgba(89, 89, 89, 0.8)" : "rgba(226, 232, 240, 0.8)",
   }
-
-  // Voice animation - voice assistant style waves using transform scale instead of height
   useEffect(() => {
+    // Voice animation - voice assistant style waves using transform scale instead of height
     if (recognizing) {
       // Set up staggered wave animations
       setShowVoiceWaves(true)
-
-      // Wave 1 animation
       Animated.loop(
+        // Wave 1 animation
         Animated.sequence([
           Animated.timing(waveAnim1, {
             toValue: 1,
@@ -127,9 +125,8 @@ const NewTask = () => {
           }),
         ]),
       ).start()
-
-      // Wave 2 animation with delay
       setTimeout(() => {
+        // Wave 2 animation with delay
         Animated.loop(
           Animated.sequence([
             Animated.timing(waveAnim2, {
@@ -145,9 +142,8 @@ const NewTask = () => {
           ]),
         ).start()
       }, 200)
-
-      // Wave 3 animation with delay
       setTimeout(() => {
+        // Wave 3 animation with delay
         Animated.loop(
           Animated.sequence([
             Animated.timing(waveAnim3, {
@@ -171,9 +167,8 @@ const NewTask = () => {
       setShowVoiceWaves(false)
     }
   }, [recognizing])
-
-  // Pulse animation effect
   useEffect(() => {
+    // Pulse animation effect
     let pulseAnimation
     if (recognizing) {
       pulseAnimation = Animated.loop(
@@ -200,20 +195,16 @@ const NewTask = () => {
       }
     }
   }, [recognizing])
-
-  // Enhanced deep link handling
   useEffect(() => {
+    // Enhanced deep link handling
     if (params.content) {
       console.log("Received task from deep link:", params.content)
-
-      // Set the task title from deep link content
       setTaskData((prev) => ({
+        // Set the task title from deep link content
         ...prev,
         title: params.content,
         priority: params.priority || "", // Default to medium priority if not provided
-      }))
-
-      // Skip recording title and move to summary
+      })) // Skip recording title and move to summary
       setTranscript(params.content)
       finishTask()
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -236,9 +227,8 @@ const NewTask = () => {
       return () => clearTimeout(timer)
     }
   }, [])
-
-  // Auto-process title after stopping recognition
   useEffect(() => {
+    // Auto-process title after stopping recognition
     if (!recognizing && transcript && currentStep === 0 && !isEditing) {
       // Increased delay to allow for UI updates before processing
       const timer = setTimeout(() => {
@@ -247,9 +237,8 @@ const NewTask = () => {
       return () => clearTimeout(timer)
     }
   }, [recognizing, transcript, currentStep])
-
-  // 9. Add a timer effect to show recording duration
   useEffect(() => {
+    // 9. Add a timer effect to show recording duration
     let interval
     if (recognizing) {
       interval = setInterval(() => {
@@ -261,9 +250,8 @@ const NewTask = () => {
     }
     return () => clearInterval(interval)
   }, [recognizing, recordingStartTime])
-
-  // Auto-save countdown effect
   useEffect(() => {
+    // Auto-save countdown effect
     if (autoSaving && saveCountdown > 0) {
       const timer = setTimeout(() => {
         setSaveCountdown((prev) => prev - 1)
@@ -275,15 +263,13 @@ const NewTask = () => {
       saveTaskAndNavigate()
     }
   }, [autoSaving, saveCountdown])
-
-  // Speech timeout handling
   useEffect(() => {
+    // Speech timeout handling
     if (recognizing) {
       // Clear any existing timeout
       if (speechTimeoutRef.current) {
         clearTimeout(speechTimeoutRef.current)
-      }
-      // Set new timeout
+      } // Set new timeout
       speechTimeoutRef.current = setTimeout(() => {
         if (recognizing && !transcript) {
           // No speech detected after timeout
@@ -298,50 +284,42 @@ const NewTask = () => {
       }
     }
   }, [recognizing, transcript])
-
   useEffect(() => {
     if (recognizing && currentStep === 0) {
       // Clear any existing timer
       if (autoConfirmTimer) {
         clearTimeout(autoConfirmTimer)
       }
-
       // Set a new timer for auto-confirmation
       const timer = setTimeout(() => {
         if (recognizing && transcript) {
-          console.log("Auto-confirming after 15 seconds")
+          console.log("Auto-confirming after 3 seconds")
           handleStop()
           // Process after a short delay to ensure speech recognition has fully stopped
           setTimeout(() => processTitleInput(), 500)
         }
       }, AUTO_CONFIRM_TIMEOUT)
-
       setAutoConfirmTimer(timer)
-    }
-
-    // Clean up timer on unmount or when recognition stops
+    } // Clean up timer on unmount or when recognition stops
     return () => {
       if (autoConfirmTimer) {
         clearTimeout(autoConfirmTimer)
       }
     }
   }, [recognizing, currentStep])
-
-  // Speech recognition event handlers
   useSpeechRecognitionEvent("start", () => {
+    // Speech recognition event handlers
     setRecognizing(true)
     setRecordingStartTime(Date.now())
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setCurrentAction("Listening...")
   })
-
   useSpeechRecognitionEvent("end", () => {
     setRecognizing(false)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     setCurrentAction(transcript ? "Processing input..." : "No speech detected")
-
-    // If editing title, update title and return to summary
     if (isEditing && transcript) {
+      // If editing title, update title and return to summary
       setTaskData((prev) => ({
         ...prev,
         title: transcript,
@@ -350,55 +328,45 @@ const NewTask = () => {
       setCurrentStep(1)
     }
   })
-
   useSpeechRecognitionEvent("result", (event) => {
     const newTranscript = event.results[0]?.transcript || ""
     setTranscript(newTranscript)
-
-    // Reset timeout if we get new speech
     if (newTranscript && speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current);
+      // Reset timeout if we get new speech
+      clearTimeout(speechTimeoutRef.current)
       speechTimeoutRef.current = setTimeout(() => {
         if (recognizing) {
-          handleStop();
+          handleStop()
         }
-      }, SPEECH_TIMEOUT);
+      }, SPEECH_TIMEOUT)
     }
-
-    // Reset auto-confirm timer when new speech is detected
     if (newTranscript && autoConfirmTimer) {
+      // Reset auto-confirm timer when new speech is detected
       clearTimeout(autoConfirmTimer)
-
-      // Set new auto-confirm timer
       const timer = setTimeout(() => {
+        // Set new auto-confirm timer
         if (recognizing && transcript) {
           console.log("Auto-confirming after new speech")
           handleStop()
-          setTimeout(() => processTitleInput(), 500)
+          setTimeout(() => processTitleInput(), 1000)
         }
       }, AUTO_CONFIRM_TIMEOUT)
-
       setAutoConfirmTimer(timer)
     }
   })
-
   useEffect(() => {
     let interval
-
     if (recognizing && transcript && currentStep === 0) {
       const startTime = Date.now()
-
       interval = setInterval(() => {
         const elapsed = Date.now() - startTime
         const remaining = Math.ceil((AUTO_CONFIRM_TIMEOUT - elapsed) / 1000)
-
-        if (remaining <= 3) {
+        if (remaining <= 1) {
           // Only show countdown for the last 5 seconds
           setAutoConfirmCountdown(remaining)
         } else {
           setAutoConfirmCountdown(null)
         }
-
         if (elapsed >= AUTO_CONFIRM_TIMEOUT) {
           clearInterval(interval)
         }
@@ -406,12 +374,10 @@ const NewTask = () => {
     } else {
       setAutoConfirmCountdown(null)
     }
-
     return () => {
       if (interval) clearInterval(interval)
     }
   }, [recognizing, transcript, currentStep])
-
   const handleStart = async () => {
     const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
     if (!result.granted) {
@@ -420,7 +386,6 @@ const NewTask = () => {
       setCurrentAction("Microphone permission denied")
       return
     }
-
     setCurrentAction("I'm listening...")
     ExpoSpeechRecognitionModule.start({
       lang: "en-US",
@@ -431,21 +396,18 @@ const NewTask = () => {
       addsPunctuation: true,
     })
   }
-
   const handleStop = () => {
     ExpoSpeechRecognitionModule.stop()
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setCurrentAction("Processing...")
-    
-    // Clear any auto-confirm timer
     if (autoConfirmTimer) {
+      // Clear any auto-confirm timer
       clearTimeout(autoConfirmTimer)
       setAutoConfirmTimer(null)
     }
   }
-
-  // Process the title input and move to summary
   const processTitleInput = () => {
+    // Process the title input and move to summary
     if (transcript) {
       setCurrentAction("Title captured, finalizing task")
       setTaskData((prev) => ({
@@ -455,8 +417,6 @@ const NewTask = () => {
       finishTask()
     }
   }
-
-  // Function to save task data and navigate to another screen
   const saveTaskAndNavigate = () => {
     try {
       const finalTaskData = {
@@ -465,7 +425,6 @@ const NewTask = () => {
         created: new Date().toISOString(),
         status: "new",
       }
-
       const noteData = {
         id: finalTaskData.id,
         title: finalTaskData.title,
@@ -479,10 +438,8 @@ const NewTask = () => {
               ? "#4F46E5"
               : "#059669",
       }
-
       console.log("About to navigate with note data:", noteData)
 
-      // First, store the note in AsyncStorage
       AsyncStorage.getItem("notes_data")
         .then((storedNotes) => {
           const currentNotes = storedNotes ? JSON.parse(storedNotes) : []
@@ -490,15 +447,24 @@ const NewTask = () => {
           return AsyncStorage.setItem("notes_data", JSON.stringify(updatedNotes))
         })
         .then(() => {
-          console.log("Note saved to storage, now navigating...")
-          // Then navigate with params
-          router.replace({
-            pathname: "/(tabs)",
-            params: {
-              newNote: JSON.stringify(noteData),
-              timestamp: Date.now(),
-            },
-          })
+          console.log("Note saved to storage")
+
+          // Check if we should return to tabs or exit the app
+          if (params.returnToTabs === "true") {
+            // Navigate to tabs with the new note
+            router.replace({
+              pathname: "/(tabs)",
+              params: {
+                newNote: JSON.stringify(noteData),
+                timestamp: Date.now(),
+              },
+            })
+          } else {
+            // Exit the app after a 2-second delay
+            setTimeout(() => {
+              RNExitApp.exitApp()
+            }, 1000)
+          }
         })
         .catch((error) => {
           console.error("Error in save and navigate:", error)
@@ -512,36 +478,30 @@ const NewTask = () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     }
   }
-
-  // Finalize task creation with animation
   const finishTask = () => {
+    // Finalize task creation with animation
     setCurrentStep(1) // Move to summary
     setTranscript("")
     setCurrentAction("Task created successfully")
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-
-    // Ensure animation plays
     setTimeout(() => {
+      // Ensure animation plays
       if (animationRef.current) {
         animationRef.current.play()
       }
     }, 100)
-
-    // Update task data with final timestamp
     setTaskData((prev) => {
+      // Update task data with final timestamp
       return {
         ...prev,
         created: new Date().toISOString(),
       }
     })
-
-    // Start auto-save countdown
-    setSaveCountdown(AUTO_SAVE_COUNTDOWN)
+    setSaveCountdown(AUTO_SAVE_COUNTDOWN) // Start auto-save countdown
     setAutoSaving(true)
   }
-
-  // Get current step guidance
   const getStepLabel = () => {
+    // Get current step guidance
     switch (currentStep) {
       case 0:
         return isEditing ? "Editing Task Title" : "Recording Task Title"
@@ -549,7 +509,6 @@ const NewTask = () => {
         return "Task Summary"
     }
   }
-
   const getStepInstructions = () => {
     switch (currentStep) {
       case 0:
@@ -558,25 +517,18 @@ const NewTask = () => {
         return ""
     }
   }
-
-  // Render voice wave animations using transform scale instead of height
   const renderVoiceWaves = () => {
+    // Render voice wave animations using transform scale instead of height
     if (showVoiceWaves && recognizing) {
-      // Define wave count and base properties
-      const waveCount = 7
+      const waveCount = 7 // Define wave count and base properties
       const waves = []
-
       for (let i = 0; i < waveCount; i++) {
-        // Calculate animation source - distribute waves to use different animations
-        let animSource
+        let animSource // Calculate animation source - distribute waves to use different animations
         if (i % 3 === 0) animSource = waveAnim1
         else if (i % 3 === 1) animSource = waveAnim2
         else animSource = waveAnim3
-
-        // Calculate magnitude based on position (center waves larger)
-        const centerDistance = Math.abs(i - Math.floor(waveCount / 2))
+        const centerDistance = Math.abs(i - Math.floor(waveCount / 2)) // Calculate magnitude based on position (center waves larger)
         const magnitude = 1 - centerDistance * 0.15
-
         waves.push(
           <Animated.View
             key={`wave-${i}`}
@@ -598,14 +550,12 @@ const NewTask = () => {
           />,
         )
       }
-
       return <View style={styles.voiceWavesContainer}>{waves}</View>
     }
     return null
   }
-
-  // Render task summary with enhanced UI
   const renderTaskSummary = () => {
+    // Render task summary with enhanced UI
     if (currentStep === 1) {
       return (
         <View style={styles.taskSummary}>
@@ -615,7 +565,6 @@ const NewTask = () => {
                 Task Ready
               </Text>
             </View>
-
             <View style={styles.titleContainer}>
               <MaterialCommunityIcons
                 name="checkbox-marked-circle-outline"
@@ -625,7 +574,6 @@ const NewTask = () => {
               />
               <Text style={[styles.summaryTitle, { color: theme.text }]}>{taskData.title}</Text>
             </View>
-
             <View style={styles.metaContainer}>
               <View
                 style={[
@@ -650,7 +598,6 @@ const NewTask = () => {
                 </Text>
               </View>
             </View>
-
             {autoSaving && (
               <View
                 style={[
@@ -673,25 +620,22 @@ const NewTask = () => {
     }
     return null
   }
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Dark mode aware StatusBar */}
-      <StatusBar style={isDarkMode ? "light" : "dark"} />
-
-      <View style={[styles.headerContainer, { borderBottomColor: theme.divider }]}>
-        <Pressable
-          style={[styles.backButton, { backgroundColor: theme.backButtonBg }]}
-          onPress={() =>
-            router.replace({
-              pathname: "/(tabs)",
-            })
-          }
-        >
-          <Ionicons name="arrow-back" size={27} color={theme.text} />
-        </Pressable>
-
-        <View style={styles.statusIndicator}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+    <View style={[styles.headerContainer, { borderBottomColor: theme.divider }]}>
+      <Pressable
+        style={[styles.backButton, { backgroundColor: theme.backButtonBg }]}
+        onPress={() => {
+          router.replace({
+            pathname: "/(tabs)",
+            params: params.returnToTabs === "true" ? { returnedFromRecord: "true" } : undefined,
+          })
+        }}
+      >
+        <Ionicons name="arrow-back" size={27} color={theme.text} />
+      </Pressable>
+      <View style={styles.statusIndicator}>
           {recognizing && (
             <>
               <Animated.View
@@ -711,20 +655,15 @@ const NewTask = () => {
           </Text>
         </View>
       </View>
-
-      {/* Action indicator */}
       <View style={styles.actionIndicator}>
         <Text style={[styles.actionText, { color: colors.primary }]}>{currentAction}</Text>
       </View>
-
       <Surface style={[styles.transcriptSurface, { backgroundColor: theme.cardBg }]}>
         <ScrollView
           contentContainerStyle={styles.transcriptScrollview}
           showsVerticalScrollIndicator={false}
         >
-          {/* Render voice waves above content when listening */}
           {renderVoiceWaves()}
-
           {currentStep === 1 ? (
             renderTaskSummary()
           ) : transcript ? (
@@ -773,8 +712,6 @@ const NewTask = () => {
               )}
             </View>
           )}
-
-          {/* Step indicator dots */}
           <View style={styles.stepIndicator}>
             {[0, 1].map((step) => (
               <View
@@ -797,31 +734,28 @@ const NewTask = () => {
           </View>
         </ScrollView>
       </Surface>
-
       <View style={styles.controls}>
         {currentStep < 1 && (
           <>
-            {/* {recognizing && transcript && recordingTime >= 2 && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  {
-                    backgroundColor: theme.surface,
-                    right: 20,
-                    bottom: 100,
-                  },
-                ]}
-                onPress={() => {
-                  handleStop()
-                  // Short delay then process
-                  setTimeout(() => processTitleInput(), 500)
-                }}
-              >
-                <MaterialCommunityIcons name="check-circle" size={24} color={colors.primary} />
-                <Text style={[styles.actionButtonText, { color: colors.primary }]}>Confirm</Text>
-              </TouchableOpacity>
-            )} */}
-
+            <View
+              style={[
+                styles.voiceHints,
+                {
+                  backgroundColor: theme.voiceHintBg,
+                  borderColor: theme.voiceHintBorder,
+                },
+              ]}
+            >
+              <Text style={[styles.voiceHintText, { color: theme.secondaryText }]}>
+                {isEditing
+                  ? "Speak new title - will auto-confirm when you stop speaking"
+                  : recognizing
+                    ? autoConfirmCountdown
+                      ? `Auto-confirming in ${autoConfirmCountdown}s...`
+                      : `Speaking (${recordingTime}s)`
+                    : "Tap microphone and speak your task title"}
+              </Text>
+            </View>
             <TouchableOpacity
               style={[
                 styles.micButton,
@@ -845,30 +779,8 @@ const NewTask = () => {
                 <ActivityIndicator size="large" color="white" style={styles.recordingActivity} />
               )}
             </TouchableOpacity>
-
-            {/* Voice command hints */}
-            <View
-              style={[
-                styles.voiceHints,
-                {
-                  backgroundColor: theme.voiceHintBg,
-                  borderColor: theme.voiceHintBorder,
-                },
-              ]}
-            >
-              <Text style={[styles.voiceHintText, { color: theme.secondaryText }]}>
-                {isEditing
-                  ? "Speak new title - will auto-confirm when you stop speaking"
-                  : recognizing
-                    ? autoConfirmCountdown
-                      ? `Auto-confirming in ${autoConfirmCountdown}s...`
-                      : `Speaking (${recordingTime}s)`
-                    : "Tap microphone and speak your task title"}
-              </Text>
-            </View>
           </>
         )}
-
         {currentStep === 1 && (
           <View style={styles.finalButtons}>
             <TouchableOpacity
@@ -906,19 +818,27 @@ const NewTask = () => {
           </View>
         )}
       </View>
-    </View>
+      <NavigationBarThemeHandler 
+  specialState={recognizing}
+  specialColor={
+    recognizing 
+      ? isDarkMode 
+        ? "rgb(29, 21, 21)" // Subtle dark red tint for dark mode
+        : "rgb(245, 228, 228)" // Very subtle light red tint for light mode
+      : null
+  }
+  specialButtonStyle={isDarkMode ? "light" : "dark"}
+/>
+    </SafeAreaView>
   )
 }
-
 const styles = StyleSheet.create({
-  // Core layout
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
+  container: { 
+    flex: 1, 
     paddingHorizontal: 20,
+    // Consider removing or reducing paddingTop when using SafeAreaView
+    paddingTop: Platform.OS === "ios" ? 20 : 40 
   },
-
-  // Header area
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -940,19 +860,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 40,
   },
-  recordingIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 10,
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: "600",
-    letterSpacing: -0.5,
-  },
-
-  // Action status display
+  recordingIndicator: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
+  statusText: { fontSize: 20, fontWeight: "800" },
   actionIndicator: {
     backgroundColor: "rgba(226, 232, 240, 0.5)",
     paddingVertical: 8,
@@ -961,12 +870,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 20,
   },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-
-  // Main content area
+  actionText: { fontSize: 14, fontWeight: "500" },
   transcriptSurface: {
     flex: 1,
     borderRadius: 20,
@@ -978,13 +882,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     overflow: "hidden",
   },
-  transcriptScrollview: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  // Transcript display
+  transcriptScrollview: { flexGrow: 1, justifyContent: "center", padding: 20 },
   transcriptContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -999,18 +897,8 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     letterSpacing: -0.3,
   },
-  quoteIcon: {
-    alignSelf: "center",
-    marginVertical: 8,
-    opacity: 0.5,
-  },
-
-  // Empty state
-  emptyStateContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
+  quoteIcon: { alignSelf: "center", marginVertical: 8, opacity: 0.5 },
+  emptyStateContainer: { alignItems: "center", justifyContent: "center", padding: 24 },
   emptyStateText: {
     fontSize: 17,
     textAlign: "center",
@@ -1018,8 +906,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     maxWidth: "80%",
   },
-
-  // Voice visualization
   voiceWavesContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1028,19 +914,8 @@ const styles = StyleSheet.create({
     width: "100%",
     marginBottom: 20,
   },
-  voiceWave: {
-    width: 6,
-    height: 40,
-    borderRadius: 3,
-    marginHorizontal: 5,
-  },
-
-  // Controls section
-  controls: {
-    paddingVertical: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  voiceWave: { width: 6, height: 40, borderRadius: 3, marginHorizontal: 5 },
+  controls: { paddingBottom: 40, alignItems: "center", justifyContent: "center" },
   micButton: {
     width: 80,
     height: 80,
@@ -1066,20 +941,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
   },
-  actionButtonText: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  recordingActivity: {
-    position: "absolute",
-    width: 100,
-    height: 100,
-  },
-
-  // Voice hints
+  actionButtonText: { marginLeft: 8, fontSize: 16, fontWeight: "600" },
+  recordingActivity: { position: "absolute", width: 100, height: 100 },
   voiceHints: {
-    marginTop: 20,
+    marginBottom: 20,
     padding: 14,
     borderRadius: 16,
     backgroundColor: "rgba(236, 242, 250, 0.8)",
@@ -1087,31 +952,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(200, 220, 240, 0.5)",
   },
-  voiceHintText: {
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "500",
-    opacity: 0.75,
-  },
-
-  // Step indicators
-  stepIndicator: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 30,
-  },
-  stepDot: {
-    borderRadius: 6,
-    marginHorizontal: 5,
-    opacity: 0.9,
-  },
-
-  // Task summary view (replacing Lottie animation)
-  taskSummary: {
-    alignItems: "center",
-    width: "100%",
-    paddingVertical: 10,
-  },
+  voiceHintText: { textAlign: "center", fontSize: 15, fontWeight: "500", opacity: 0.75 },
+  stepIndicator: { flexDirection: "row", justifyContent: "center", marginTop: 30 },
+  stepDot: { borderRadius: 6, marginHorizontal: 5, opacity: 0.9 },
+  taskSummary: { alignItems: "center", width: "100%", paddingVertical: 10 },
   summaryCard: {
     width: "100%",
     borderRadius: 20,
@@ -1141,21 +985,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 16,
   },
-  titleIcon: {
-    marginRight: 14,
-    marginTop: 2,
-  },
-  summaryTitle: {
-    fontSize: 22,
-    fontWeight: "600",
-    flex: 1,
-    lineHeight: 28,
-  },
-  metaContainer: {
-    padding: 20,
-    paddingTop: 0,
-    paddingBottom: 24,
-  },
+  titleIcon: { marginRight: 14, marginTop: 2 },
+  summaryTitle: { fontSize: 22, fontWeight: "600", flex: 1, lineHeight: 28 },
+  metaContainer: { padding: 20, paddingTop: 0, paddingBottom: 24 },
   dateContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1168,21 +1000,9 @@ const styles = StyleSheet.create({
     borderColor: "light-grey",
     alignSelf: "flex-start",
   },
-  dateText: {
-    marginLeft: 10,
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#475569",
-  },
-  priorityContainer: {
-    flexDirection: "row",
-    marginTop: 4,
-  },
-  priorityChip: {
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-  },
+  dateText: { marginLeft: 10, fontSize: 15, fontWeight: "500", color: "#475569" },
+  priorityContainer: { flexDirection: "row", marginTop: 4 },
+  priorityChip: { height: 36, paddingHorizontal: 12, borderRadius: 18 },
   autoSaveIndicator: {
     flexDirection: "row",
     alignItems: "center",
@@ -1192,14 +1012,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(226, 232, 240, 0.8)",
   },
-  autoSaveText: {
-    marginLeft: 10,
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#475569",
-  },
-
-  // Action buttons
+  autoSaveText: { marginLeft: 10, fontSize: 15, fontWeight: "500", color: "#475569" },
   finalButtons: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -1220,14 +1033,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
-  finalButtonText: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-  },
-
-  // Auto-start prompt
+  finalButtonText: { marginLeft: 8, fontSize: 16, fontWeight: "600", color: "white" },
   startPromptButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1241,14 +1047,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  startPromptText: {
-    marginLeft: 10,
-    color: "white",
-    fontWeight: "600",
-    fontSize: 15,
-  },
-
-  // Status completion visualization (replacing Lottie)
+  startPromptText: { marginLeft: 10, color: "white", fontWeight: "600", fontSize: 15 },
   completionIndicator: {
     width: 80,
     height: 80,
@@ -1260,10 +1059,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 16,
   },
-  checkIcon: {
-    fontSize: 40,
-    color: "#22C55E",
-  },
+  checkIcon: { fontSize: 40, color: "#22C55E" },
 })
-
 export default NewTask

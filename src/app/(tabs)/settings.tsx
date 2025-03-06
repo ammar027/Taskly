@@ -53,7 +53,7 @@ export default function SettingsScreen() {
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      await WebBrowser.openBrowserAsync('https://pvc-p.vercel.app/');
+      await WebBrowser.openBrowserAsync('https://taskly-pvc-p.vercel.app/');
     } catch (error) {
       console.error('Error opening privacy policy:', error);
     }
@@ -130,7 +130,7 @@ export default function SettingsScreen() {
         </Text>
       </View>
 
-      <View style={styles.section}>
+      {/* <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           Voice Settings
         </Text>
@@ -171,7 +171,7 @@ export default function SettingsScreen() {
             showBorder={false}
           />
         </View>
-      </View>
+      </View> */}
       
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
@@ -197,14 +197,14 @@ export default function SettingsScreen() {
             onPress={handlePrivacyPolicy}
             showBorder={true}
           />
-          <SettingItem 
+          {/* <SettingItem 
             icon="document-text" 
             text="Terms of Service" 
             rightElement={
               <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
             }
             showBorder={false}
-          />
+          /> */}
         </View>
       </View>
       

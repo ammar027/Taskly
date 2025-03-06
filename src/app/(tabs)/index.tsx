@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -111,7 +111,10 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
 
 const FAB = memo(({ theme }) => {
   const handlePress = useCallback(() => {
-    router.push('/record/new');
+    router.push({
+      pathname: '/record/new',
+      params: { returnToTabs: 'true' }
+    });
   }, []);
 
   useEffect(() => {
@@ -162,6 +165,7 @@ const FAB = memo(({ theme }) => {
 export default function NotesScreen() {
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const params = useLocalSearchParams();
   const navigationCount = useRef(0);
   const { isDarkMode } = useTheme();
@@ -206,6 +210,18 @@ export default function NotesScreen() {
       setIsLoading(false);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    console.log('Refreshing notes...');
+    setRefreshing(true);
+    try {
+      await loadNotes();
+    } catch (error) {
+      console.error('Error during refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoading) {
@@ -342,6 +358,16 @@ export default function NotesScreen() {
           initialNumToRender={5}
           maxToRenderPerBatch={5}
           windowSize={5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#4F46E5']}
+              tintColor={isDarkMode ? '#6366F1' : '#4F46E5'}
+              titleColor={theme.textColor}
+              title="Refreshing..."
+            />
+          }
         />
       )}
       
@@ -370,7 +396,7 @@ const styles = StyleSheet.create({
   noteDate: { fontSize: 16, fontWeight: '500' },
   actionIcons: { flexDirection: 'row', gap: 12 },
   iconButton: { padding: 4 },
-  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 10, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
+  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 90, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
   fabIcon: { marginRight: 6 },
   fabText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

@@ -85,6 +85,7 @@
     "react-native-background-actions": "^4.0.1",
     "react-native-drawer-layout": "^4.0.1",
     "react-native-edge-to-edge": "^1.4.3",
+    "react-native-exit-app": "^2.0.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-keyboard-controller": "^1.12.7",
     "react-native-mmkv": "3.1.0",

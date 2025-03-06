@@ -14,6 +14,7 @@ import Constants from "expo-constants"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { ReminderCard } from "@/components/cards/ReminderCard"
 import { useTheme } from "@/components/ThemeContext"
+import * as NavigationBar from "expo-navigation-bar";
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -42,6 +43,36 @@ const CATEGORY_EMOJIS = {
 
 // Priority emoji map
 const PRIORITY_EMOJIS = { high: "🔴", medium: "🟠", low: "🟢" }
+
+// Helper function to set navigation bar theme based on current theme
+const setNavigationBarTheme = (isDarkMode) => {
+  if (Platform.OS === "android") {
+    // Set navigation bar color based on theme
+    NavigationBar.setBackgroundColorAsync(isDarkMode ? "rgb(30, 30, 30)" : "#ffffff")
+      .catch(error => {
+        console.error("Failed to set navigation bar color:", error);
+      });
+    
+    // Set button style based on theme
+    NavigationBar.setButtonStyleAsync(isDarkMode ? "light" : "dark")
+      .catch(error => {
+        console.error("Failed to set navigation bar button style:", error);
+      });
+    
+    // Set position
+    NavigationBar.setPositionAsync("relative")
+      .catch(error => {
+        console.error("Failed to set navigation bar position:", error);
+      });
+      
+    // Set visibility
+    NavigationBar.setVisibilityAsync("visible")
+      .catch(error => {
+        console.error("Failed to set navigation bar visibility:", error);
+      });
+  }
+};
+
 
 export default function RemindersScreen() {
   const { isDarkMode } = useTheme();
@@ -86,6 +117,28 @@ export default function RemindersScreen() {
   const [priority, setPriority] = useState("medium")
   const [category, setCategory] = useState("Work")
   const [reminderTime, setReminderTime] = useState(15)
+
+  useEffect(() => {
+    console.log(`Theme changed in ReminderScreen, isDarkMode: ${isDarkMode}`);
+    setNavigationBarTheme(isDarkMode);
+    
+    // Set up an interval to ensure the navigation bar remains in the correct position and theme
+    const interval = setInterval(() => {
+      setNavigationBarTheme(isDarkMode);
+    }, 2000); // Check every 2 seconds
+    
+    return () => clearInterval(interval);
+  }, [isDarkMode]);
+
+  // Additional effect to update navigation bar when modal state changes
+  useEffect(() => {
+    // Short delay to ensure theme is applied after modal animations
+    const timeoutId = setTimeout(() => {
+      setNavigationBarTheme(isDarkMode);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [modalVisible, showDatePicker, isDarkMode]);
 
   // Parse date string to Date object
   const parseReminderDate = useCallback((dateString) => {
@@ -212,11 +265,23 @@ export default function RemindersScreen() {
     loadReminders()
     
     // Register for push notifications
-    registerForPushNotificationsAsync().then(token => setExpoPushToken(token))
+    registerForPushNotificationsAsync().then(token => {
+      setExpoPushToken(token)
+    }).finally(() => {
+      // Always set navigation bar position regardless of permission result
+      setNavigationBarTheme(isDarkMode);
+    });
     
     // Set up notification listeners
-    notificationListener.current = Notifications.addNotificationReceivedListener(() => {})
+    notificationListener.current = Notifications.addNotificationReceivedListener(() => {
+      // Ensure navigation bar position when receiving a notification
+      setNavigationBarTheme(isDarkMode);
+    })
+    
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      // Ensure navigation bar position when responding to a notification
+      setNavigationBarTheme(isDarkMode);
+      
       const reminderData = response.notification.request.content.data
       if (reminderData?.reminderId) {
         const reminder = reminders.find(r => r.id === reminderData.reminderId)
@@ -369,6 +434,9 @@ export default function RemindersScreen() {
     setReminderTime(reminder.reminderTime || 15)
     setEditMode(true)
     setModalVisible(true)
+    
+    // Reset navigation bar when opening modal
+    setNavigationBarTheme(isDarkMode);
   }
 
   // Open add modal with reset form
@@ -381,12 +449,18 @@ export default function RemindersScreen() {
     setReminderTime(15)
     setEditMode(false)
     setModalVisible(true)
+    
+    // Reset navigation bar when opening modal
+    setNavigationBarTheme(isDarkMode);
   }
 
   // Date picker helpers
   const showDatePickerModal = (mode) => {
     setDatePickerMode(mode)
     setShowDatePicker(true)
+    
+    // Reset navigation bar when showing date picker
+    setNavigationBarTheme(isDarkMode);
   }
 
   const onChangeDate = (event, selected) => {
@@ -405,7 +479,11 @@ export default function RemindersScreen() {
       setSelectedDate(currentDateTime)
     }
     
-    if (Platform.OS === "android") setShowDatePicker(false)
+    if (Platform.OS === "android") {
+      setShowDatePicker(false)
+      // Ensure navigation bar position after closing date picker on Android
+      setNavigationBarTheme(isDarkMode);
+    }
   }
 
   // Format date for display
@@ -459,6 +537,9 @@ export default function RemindersScreen() {
     }
     
     setModalVisible(false)
+    
+    // Reset navigation bar position after closing modal
+    setTimeout(setNavigationBarPosition, 300);
   }
 
   // Get priority colors based on theme
@@ -620,7 +701,11 @@ export default function RemindersScreen() {
             <View style={[styles.datePickerButtons, { backgroundColor: isDarkMode ? "#1f2937" : "#f1f5f9" }]}>
               <TouchableOpacity
                 style={styles.datePickerButton}
-                onPress={() => setShowDatePicker(false)}
+                onPress={() => {
+                  setShowDatePicker(false)
+                  // Reset navigation bar after closing date picker
+                  setNavigationBarPosition()
+                }}
               >
                 <Text style={[styles.datePickerButtonText, { color: colors.accent }]}>Done</Text>
               </TouchableOpacity>
@@ -708,7 +793,11 @@ export default function RemindersScreen() {
           animationType="slide"
           transparent={true}
           visible={modalVisible}
-          onRequestClose={() => setModalVisible(false)}
+          onRequestClose={() => {
+            setModalVisible(false)
+            // Reset navigation bar when closing modal
+            setTimeout(setNavigationBarPosition, 300)
+          }}
           statusBarTranslucent
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -897,7 +986,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: "absolute",
-    bottom: 20,
+    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

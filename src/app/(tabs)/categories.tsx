@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Modal, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Modal, RefreshControl, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/components/ThemeContext';
+import { useScreenDetails } from '@/components/OrientationControl';
 
 const STORAGE_KEY = 'notes_data';
 const DEFAULT_CATEGORIES = [
@@ -22,26 +23,47 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const CategoryNotesList = ({ notes, category, onClose }) => {
   const { isDarkMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const { isTablet, orientation, width } = useScreenDetails();
   
-  // Create theme colors
-  const themeColors = {
+  const themeColors = useMemo(() => ({
     background: isDarkMode ? '#121212' : '#f8fafc',
     cardBackground: isDarkMode ? '#1e1e1e' : '#ffffff',
     textPrimary: isDarkMode ? '#e0e0e0' : '#1e293b',
     textSecondary: isDarkMode ? '#a0a0a0' : '#64748b',
     border: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
     icon: isDarkMode ? '#e0e0e0' : '#1e293b',
-  };
+  }), [isDarkMode]);
   
   const filteredNotes = notes.filter(note => note.category === category.name);
   
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // Simulate a refresh - in a real app, you would re-fetch notes here
     setTimeout(() => setRefreshing(false), 1000);
-    // If you have a function to reload notes, call it here
-    // onClose(); // If you want to close and reload from parent
   }, []);
+  
+  // Determine number of columns based on device and orientation
+  const numColumns = useMemo(() => {
+    if (isTablet) {
+      return orientation === 'landscape' ? 2 : 1;
+    }
+    return 1;
+  }, [isTablet, orientation]);
+  
+  // Calculate note card width based on number of columns and screen width
+  const cardWidth = useMemo(() => {
+    const padding = 20; // Container padding
+    const gap = 16; // Gap between cards
+    
+    if (numColumns === 1) {
+      return '100%';
+    }
+    
+    // For multiple columns, calculate width considering gaps
+    const availableWidth = width - (padding * 2);
+    const widthPerCard = (availableWidth - (gap * (numColumns - 1))) / numColumns;
+    
+    return widthPerCard;
+  }, [numColumns, width]);
   
   return (
     <Modal
@@ -69,7 +91,12 @@ const CategoryNotesList = ({ notes, category, onClose }) => {
           <FlatList
             data={filteredNotes}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.notesListContainer}
+            contentContainerStyle={[styles.notesListContainer, { 
+              alignItems: numColumns > 1 ? 'flex-start' : 'stretch'
+            }]}
+            numColumns={numColumns}
+            key={`notes-${numColumns}`}
+            columnWrapperStyle={numColumns > 1 ? styles.noteColumnWrapper : undefined}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -84,15 +111,23 @@ const CategoryNotesList = ({ notes, category, onClose }) => {
                 style={[
                   styles.noteCard, 
                   { 
-                    backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
-                    borderColor: themeColors.border
+                    backgroundColor: isDarkMode ? `${category.color}20` : `${category.color}10`,
+                    borderColor: themeColors.border,
+                    width: numColumns > 1 ? cardWidth : undefined,
+                    // Enhance elevation for better shadow on Android
+                    elevation: 0,
+                    // Add shadow for iOS
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
                   }
                 ]}
                 entering={FadeInUp.delay(index * 100)}
               >
                 <View style={styles.noteHeader}>
                   <View style={styles.titleContainer}>
-                    <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
+                    <View style={[styles.categoryDot, { backgroundColor: item.color || category.color }]} />
                     <Text style={[styles.noteTitle, { color: themeColors.textPrimary }]} numberOfLines={1}>{item.title}</Text>
                   </View>
                 </View>
@@ -114,16 +149,17 @@ export default function CategoriesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { isDarkMode } = useTheme();
+  const { isTablet, orientation, width } = useScreenDetails();
   
-  // Create theme colors
-  const themeColors = {
+  // Create theme colors - use useMemo to optimize
+  const themeColors = useMemo(() => ({
     background: isDarkMode ? '#121212' : '#f8fafc',
     cardBackground: isDarkMode ? '#1e1e1e' : '#ffffff',
     textPrimary: isDarkMode ? '#e0e0e0' : '#1e293b',
     textSecondary: isDarkMode ? '#a0a0a0' : '#64748b',
     border: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
     loadingText: isDarkMode ? '#e0e0e0' : '#1e293b',
-  };
+  }), [isDarkMode]);
 
   useEffect(() => {
     loadNotes();
@@ -199,9 +235,32 @@ export default function CategoriesScreen() {
     loadNotes();
   }, []);
 
-  // Calculate how many items to render per row based on screen size
-  // We always want 2 columns for categories
-  const numColumns = 2;
+  // Calculate columns based on device and orientation
+  const numColumns = useMemo(() => {
+    if (isTablet) {
+      return orientation === 'landscape' ? 4 : 2;
+    }
+    // For phone, adjust based on orientation and screen width
+    return orientation === 'landscape' ? 3 : 2;
+  }, [isTablet, orientation]);
+  
+  // Calculate responsive card size
+  const getCardDimensions = useMemo(() => {
+    const padding = 15; // Container padding
+    const gapBetweenCards = 12; // Gap between cards
+    const totalGapWidth = gapBetweenCards * (numColumns - 1);
+    
+    // Calculate card width
+    const availableWidth = width - (padding * 2);
+    const cardWidth = (availableWidth - totalGapWidth) / numColumns;
+    
+    // Return percentage for more fluid layouts
+    return {
+      cardWidth: cardWidth,
+      // Size of the card (as percentage of container)
+      sizePercentage: `${(cardWidth / availableWidth) * 100}%`
+    };
+  }, [numColumns, width]);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -220,7 +279,12 @@ export default function CategoriesScreen() {
           data={categories}
           keyExtractor={(item) => item.id}
           numColumns={numColumns}
-          contentContainerStyle={styles.categoriesListContainer}
+          key={`grid-${numColumns}`} // This forces the list to re-render when numColumns changes
+          contentContainerStyle={[
+            styles.categoriesListContainer,
+            // Adjust padding based on device
+            isTablet ? { padding: 20 } : { padding: 12 }
+          ]}
           columnWrapperStyle={styles.columnWrapper}
           refreshControl={
             <RefreshControl
@@ -231,28 +295,77 @@ export default function CategoriesScreen() {
               progressBackgroundColor={themeColors.cardBackground}
             />
           }
-          renderItem={({ item, index }) => (
-            <AnimatedPressable 
-              style={[
-                styles.categoryCard, 
-                { 
-                  backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
-                  borderColor: themeColors.border,
-                  width: `${100 / numColumns - 3.5}%`, // Calculate width based on numColumns with margin
-                }
-              ]}
-              entering={FadeInUp.delay(index * 100)}
-              onPress={() => handleCategoryPress(item)}
-            >
-              <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon} size={24} color="#ffffff" />
-              </View>
-              <Text style={[styles.categoryName, { color: themeColors.textPrimary }]}>{item.name}</Text>
-              <Text style={[styles.noteCount, { color: item.color }]}>
-                {item.count} {item.count === 1 ? 'note' : 'notes'}
-              </Text>
-            </AnimatedPressable>
-          )}
+          renderItem={({ item, index }) => {
+            // Adjust icon size based on device type and card width
+            const iconSize = isTablet ? 30 : 24;
+            const iconContainerSize = isTablet ? 64 : Math.min(56, getCardDimensions.cardWidth * 0.35);
+            
+            return (
+              <AnimatedPressable 
+                style={[
+                  styles.categoryCard, 
+                  { 
+                    backgroundColor: isDarkMode ? `${item.color}20` : `${item.color}10`,
+                    borderColor: themeColors.border,
+                    width: getCardDimensions.sizePercentage,
+                    margin: 5,
+                    // Add shadow for better definition
+                    shadowColor: isDarkMode ? item.color : '#000',
+                    shadowOffset: { width: 0, height: 3 },
+                    shadowOpacity: isDarkMode ? 0.3 : 0.1,
+                    shadowRadius: 12,
+                    elevation: 0,
+                    // Adjust padding based on device
+                    padding: isTablet ? 16 : 12,
+                  }
+                ]}
+                entering={FadeInUp.delay(index * 100)}
+                onPress={() => handleCategoryPress(item)}
+              >
+                <View 
+                  style={[
+                    styles.iconContainer, 
+                    { 
+                      backgroundColor: item.color,
+                      width: iconContainerSize,
+                      height: iconContainerSize,
+                      borderRadius: iconContainerSize / 3,
+                    }
+                  ]}
+                >
+                  <Ionicons name={item.icon} size={iconSize} color="#ffffff" />
+                </View>
+                <Text 
+                  style={[
+                    styles.categoryName, 
+                    { 
+                      color: themeColors.textPrimary,
+                      // Responsive font size
+                      fontSize: isTablet ? 18 : 16,
+                      // Add some letter spacing for better readability
+                      letterSpacing: 0.3,
+                    }
+                  ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {item.name}
+                </Text>
+                <Text 
+                  style={[
+                    styles.noteCount, 
+                    { 
+                      color: item.color,
+                      fontSize: isTablet ? 16 : 14,
+                      opacity: 0.9,
+                    }
+                  ]}
+                >
+                  {item.count} {item.count === 1 ? 'note' : 'notes'}
+                </Text>
+              </AnimatedPressable>
+            );
+          }}
         />
       )}
 
@@ -268,36 +381,147 @@ export default function CategoriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 20, paddingTop: 60 },
-  headerTitle: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
-  headerSubtitle: { fontSize: 15, fontWeight: '500' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  categoriesListContainer: { padding: 15 },
-  notesListContainer: { padding: 20 },
-  columnWrapper: { justifyContent: 'space-around', marginBottom: 14 },
+  container: { 
+    flex: 1,
+    paddingBlockEnd:75,
+  },
+  header: {
+    padding: 20,
+    paddingTop: 50,
+    borderBottomWidth: 0.3,
+    paddingRight:20,
+    borderBlockColor: 'lightgrey',
+  },
+  headerTitle: { 
+    fontSize: 28, 
+    fontWeight: '700', 
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: { 
+    fontSize: 15, 
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  categoriesListContainer: { 
+    paddingVertical: 10,
+    paddingRight:25,
+  },
+  notesListContainer: { 
+    padding: 16,
+  },
+  columnWrapper: { 
+    justifyContent: 'flex-start', 
+    marginBottom: 4,
+  },
+  noteColumnWrapper: {
+    justifyContent: 'space-between',
+  },
   categoryCard: {
     aspectRatio: 1, 
     borderRadius: 20, 
-    padding: 16, 
+    padding: 33, 
     alignItems: 'center',
     justifyContent: 'center', 
     borderWidth: 1,
   },
-  iconContainer: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  categoryName: { fontSize: 17, fontWeight: '600', marginBottom: 4, textAlign: 'center' },
-  noteCount: { fontSize: 14, fontWeight: '600' },
-  modalContainer: { flex: 1 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, paddingTop: 60 },
-  closeButton: { padding: 8 },
-  modalTitle: { fontSize: 20, fontWeight: '600' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 12 },
-  noteCard: { marginBottom: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
-  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  titleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  categoryDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  noteTitle: { fontSize: 17, fontWeight: '600', flex: 1 },
-  noteContent: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
-  noteDate: { fontSize: 13, fontWeight: '500' },
+  iconContainer: { 
+    borderRadius: 16, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 14,
+    // Add inner shadow effect
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 0,
+  },
+  categoryName: { 
+    fontWeight: '600', 
+    marginBottom: 6, 
+    textAlign: 'center',
+    width: '100%',
+  },
+  noteCount: { 
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalContainer: { 
+    flex: 1,
+  },
+  modalHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    padding: 16, 
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'lightgrey',
+  },
+  closeButton: { 
+    padding: 8,
+    borderRadius: 20,
+  },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    right:5,
+  },
+  emptyState: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    padding: 20 
+  },
+  emptyStateText: { 
+    fontSize: 18, 
+    fontWeight: '600', 
+    marginTop: 12,
+    opacity: 0.8,
+  },
+  noteCard: { 
+    marginBottom: 16, 
+    borderRadius: 16, 
+    padding: 16, 
+    borderWidth: 1,
+  },
+  noteHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
+  },
+  titleContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    flex: 1 
+  },
+  categoryDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    marginRight: 8 
+  },
+  noteTitle: { 
+    fontSize: 17, 
+    fontWeight: '600', 
+    flex: 1 
+  },
+  noteContent: { 
+    fontSize: 15, 
+    lineHeight: 22, 
+    marginBottom: 12 
+  },
+  noteDate: { 
+    fontSize: 13, 
+    fontWeight: '500',
+    opacity: 0.8,
+  },
 });

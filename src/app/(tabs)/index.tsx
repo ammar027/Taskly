@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl, Dimensions, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -9,11 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CategorySelectionModal } from '../../components/Modals/categoriessection';
 import CustomAlert from '@/components/Modals/CutomAlert';
 import { useTheme } from '@/components/ThemeContext';
+import { useScreenDetails } from '@/components/OrientationControl';
+import { ResponsiveHeader } from '@/components/ResponsiveHeader';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const STORAGE_KEY = 'notes_data';
 
-const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
+const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLandscape }) => {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [alertVisible, setAlertVisible] = useState(false);
   
@@ -46,7 +48,8 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
           styles.noteCard, 
           { 
             backgroundColor: `${item.color}${theme.isDarkMode ? '20' : '10'}`,
-            borderColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            borderColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            width: isLandscape ? '48%' : '100%', // Adjust width based on orientation
           }
         ]}
         entering={FadeInUp.delay(index * 100)}
@@ -77,9 +80,6 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
             <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
               <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
             </Pressable>
-            {/* <Pressable style={styles.iconButton} onPress={handleShare}>
-              <Ionicons name="share-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
-            </Pressable> */}
             <Pressable style={styles.iconButton} onPress={() => setAlertVisible(true)}>
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </Pressable>
@@ -109,7 +109,7 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme }) => {
   );
 });
 
-const FAB = memo(({ theme }) => {
+const FAB = memo(({ theme, isLandscape }) => {
   const handlePress = useCallback(() => {
     router.push({
       pathname: '/record/new',
@@ -143,13 +143,17 @@ const FAB = memo(({ theme }) => {
     };
   }, []);
 
+  const { isTabletLandscape, orientation } = useScreenDetails();
+
   return (
     <Pressable 
       style={[
         styles.fab, 
         { 
           backgroundColor: theme.isDarkMode ? 'rgb(27, 24, 95)' : 'rgb(78, 70, 229)',
-          borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)'
+          borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)',
+          bottom: isTabletLandscape ? 20 : 90,
+          right: isTabletLandscape ? 20 : 10
         }
       ]} 
       onPress={handlePress}
@@ -169,6 +173,9 @@ export default function NotesScreen() {
   const params = useLocalSearchParams();
   const navigationCount = useRef(0);
   const { isDarkMode } = useTheme();
+  
+  // Use your custom hook for orientation and device detection
+  const { isTabletLandscape, isLandscape } = useScreenDetails();
 
   // Define theme objects
   const theme = {
@@ -179,6 +186,7 @@ export default function NotesScreen() {
     subTextColor: isDarkMode ? '#a0a0a0' : '#475569',
     mutedTextColor: isDarkMode ? '#6b7280' : '#64748b',
     borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    loadingText: isDarkMode ? '#e0e0e0' : '#1e293b',
   };
 
   useEffect(() => {
@@ -314,15 +322,16 @@ export default function NotesScreen() {
       onDelete={handleDeleteNote}
       onUpdateCategory={handleUpdateCategory}
       theme={theme}
+      isLandscape={isLandscape}
     />
-  ), [handleDeleteNote, handleUpdateCategory, theme]);
+  ), [handleDeleteNote, handleUpdateCategory, theme, isLandscape]);
 
   const keyExtractor = useCallback((item) => item.id, []);
 
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.backgroundColor }]}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#4F46E5"/>
       </View>
     );
   }
@@ -330,11 +339,25 @@ export default function NotesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      
-      <View style={[styles.header, { backgroundColor: theme.cardBackground }]}>
-        <Text style={[styles.welcomeText, { color: theme.textColor }]}>Welcome back!</Text>
+      <ResponsiveHeader notesCount={notes.length} />
+      {/* <View style={[
+        styles.header, 
+        { 
+          backgroundColor: theme.cardBackground,
+          paddingTop: isLandscape ? 30 : 60 // Adjust padding based on orientation
+        }
+      ]}>
+        <Text style={[
+          styles.welcomeText, 
+          { 
+            color: theme.textColor,
+            fontSize: isLandscape ? 24 : 28 // Smaller font in landscape
+          }
+        ]}>
+          Welcome back!
+        </Text>
         <Text style={[styles.subtitle, { color: theme.mutedTextColor }]}>You have {notes.length} notes</Text>
-      </View>
+      </View> */}
       
       {notes.length === 0 ? (
         <View style={styles.emptyState}>
@@ -358,6 +381,9 @@ export default function NotesScreen() {
           initialNumToRender={5}
           maxToRenderPerBatch={5}
           windowSize={5}
+          numColumns={isLandscape ? 2 : 1} // Use 2 columns in landscape mode
+          key={isLandscape ? 'landscape' : 'portrait'} // Key change forces FlatList re-render on orientation change
+          columnWrapperStyle={isLandscape ? styles.columnWrapper : null} // Apply style to wrap columns in landscape
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -371,32 +397,122 @@ export default function NotesScreen() {
         />
       )}
       
-      <FAB theme={theme} />
+      <FAB theme={theme} isLandscape={isLandscape} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 20, paddingTop: 60 },
-  welcomeText: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontSize: 15, fontWeight: '500' },
-  listContainer: { padding: 16 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 12 },
-  emptyStateSubtext: { fontSize: 14, textAlign: 'center', marginTop: 8 },
-  noteCard: { marginBottom: 16, borderRadius: 16, padding: 16, elevation: 0, borderWidth: 1 },
-  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  titleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
-  categoryDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  noteTitle: { fontSize: 22, fontWeight: '600', flex: 1 },
-  noteCategory: { fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  noteContent: { fontSize: 13, lineHeight: 22, marginBottom: 10 },
-  noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  noteDate: { fontSize: 16, fontWeight: '500' },
-  actionIcons: { flexDirection: 'row', gap: 12 },
-  iconButton: { padding: 4 },
-  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 90, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
-  fabIcon: { marginRight: 6 },
-  fabText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  container: { 
+    flex: 1 
+  },
+  welcomeText: { 
+    fontSize: 28, 
+    fontWeight: '700', 
+    marginBottom: 4 
+  },
+  subtitle: { 
+    fontSize: 15, 
+    fontWeight: '500' 
+  },
+  listContainer: { 
+    padding: 16 
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 0 // Reset margin since item has its own margin
+  },
+  emptyState: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    padding: 20 
+  },
+  emptyStateText: { 
+    fontSize: 18, 
+    fontWeight: '600', 
+    marginTop: 12 
+  },
+  emptyStateSubtext: { 
+    fontSize: 14, 
+    textAlign: 'center', 
+    marginTop: 8 
+  },
+  noteCard: { 
+    marginBottom: 16, 
+    borderRadius: 16, 
+    padding: 16, 
+    elevation: 0, 
+    borderWidth: 1 
+  },
+  noteHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
+  },
+  titleContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    flex: 1, 
+    marginRight: 12 
+  },
+  categoryDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    marginRight: 8 
+  },
+  noteTitle: { 
+    fontSize: 22, 
+    fontWeight: '600', 
+    flex: 1 
+  },
+  noteCategory: { 
+    fontSize: 14, 
+    fontWeight: '600', 
+    paddingHorizontal: 10, 
+    paddingVertical: 4, 
+    borderRadius: 12 
+  },
+  noteContent: { 
+    fontSize: 13, 
+    lineHeight: 22, 
+    marginBottom: 10 
+  },
+  noteFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  noteDate: { 
+    fontSize: 16, 
+    fontWeight: '500' 
+  },
+  actionIcons: { 
+    flexDirection: 'row', 
+    gap: 12 
+  },
+  iconButton: { 
+    padding: 4 
+  },
+  fab: { 
+    position: 'absolute', 
+    bottom: Platform.OS === 'ios' ? 100 : 90, 
+    right: 10, 
+    borderRadius: 30, 
+    padding: 15, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    elevation: 0, 
+    borderWidth: 1 
+  },
+  fabIcon: { 
+    marginRight: 6 
+  },
+  fabText: { 
+    color: '#fff', 
+    fontSize: 14, 
+    fontWeight: '600' 
+  },
 });

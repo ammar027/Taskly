@@ -11,6 +11,7 @@ import { ThemeProvider, useTheme } from '@/components/ThemeContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationBarThemeHandler } from '@/components/NavigationBarThemeHandeler'; // Import the new component
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useOrientationControl } from '@/components/OrientationControl';
 
 // Create a child component that will have access to the theme context
 function AppContent() {
@@ -147,6 +148,7 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  useOrientationControl();
   return (
     
     <ThemeProvider>

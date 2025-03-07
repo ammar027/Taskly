@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
     flex: 1, 
     paddingHorizontal: 20,
     // Consider removing or reducing paddingTop when using SafeAreaView
-    paddingTop: Platform.OS === "ios" ? 20 : 40 
+    paddingTop: Platform.OS === "ios" ? 20 : 20 
   },
   headerContainer: {
     flexDirection: "row",

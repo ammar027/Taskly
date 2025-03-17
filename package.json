@@ -42,6 +42,7 @@
     "@react-navigation/native-stack": "^6.0.2",
     "@shopify/flash-list": "1.7.3",
     "@shopify/react-native-skia": "1.5.0",
+    "@supabase/supabase-js": "^2.49.1",
     "apisauce": "3.0.1",
     "date-fns": "^4.1.0",
     "expo": "~52.0.38",
@@ -88,6 +89,7 @@
     "react-native-edge-to-edge": "^1.4.3",
     "react-native-exit-app": "^2.0.0",
     "react-native-gesture-handler": "~2.20.2",
+    "react-native-get-random-values": "~1.11.0",
     "react-native-keyboard-controller": "^1.12.7",
     "react-native-mmkv": "3.1.0",
     "react-native-paper": "^5.13.1",
@@ -99,7 +101,9 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.19.6",
     "react-native-webview": "13.12.5",
-    "react-responsive": "^10.0.1"
+    "react-responsive": "^10.0.1",
+    "realm": "^12.14.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

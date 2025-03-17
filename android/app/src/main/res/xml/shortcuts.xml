@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="recordTask"
+        android:shortcutShortLabel="@string/activity_record_task">
+        <capability-binding android:key="actions.intent.CREATE_TASK">
+            <parameter-binding
+                android:key="thing.description"
+                android:value="@array/taskSynonyms"/>
+            <parameter-binding
+                android:key="thing.importance"
+                android:value="@array/prioritySynonyms"/>
+        </capability-binding>
+    </shortcut>
+    <capability android:name="actions.intent.CREATE_TASK">
+        <intent>
+            <url-template android:value="taskly://record/new?content={thing.description}&amp;priority={thing.importance}" />
+            <parameter android:name="thing.description" android:key="content" />
+            <parameter android:name="thing.importance" android:key="priority" />
+        </intent>
+    </capability>
+</shortcuts>

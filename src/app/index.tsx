@@ -4,28 +4,23 @@ import * as NavigationBar from "expo-navigation-bar";
 import { useTheme, ThemeMode } from '@/components/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 const WELCOME_SHOWN_KEY = 'welcome_screen_shown';
+const USER_SESSION_KEY = 'user_session';
 
 export default function Index() {
   const { isDarkMode, theme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Effect for navigation bar theming
   useEffect(() => {
     const updateNavBar = async () => {
       try {
-        // Set the background color based on the current theme
         await NavigationBar.setBackgroundColorAsync(isDarkMode ? "rgb(30, 30, 30)" : "#ffffff");
-        
-        // Also set button colors for better visibility
         await NavigationBar.setButtonStyleAsync(isDarkMode ? "light" : "dark");
-        
-        // You can also control the navigation bar visibility if needed
-        // await NavigationBar.setVisibilityAsync("visible");
-        
-        console.log(`Navigation bar updated to ${isDarkMode ? 'dark' : 'light'} mode`);
       } catch (error) {
         console.error("Error setting navigation bar color:", error);
       }
@@ -37,16 +32,11 @@ export default function Index() {
   // Listen for system theme changes when using system theme
   useEffect(() => {
     if (theme === ThemeMode.SYSTEM) {
-      // This will create a subscription for system theme changes
-      // if you're using the system theme mode
       const subscription = NavigationBar.addVisibilityListener(() => {
-        // Re-apply the navigation bar color when visibility changes
-        // This helps maintain theme consistency
         const updateNavBarOnVisibilityChange = async () => {
           try {
             await NavigationBar.setBackgroundColorAsync(isDarkMode ? "rgb(30, 30, 30)" : "#ffffff");
             await NavigationBar.setButtonStyleAsync(isDarkMode ? "light" : "dark");
-            
           } catch (error) {
             console.error("Error updating navigation bar on visibility change:", error);
           }
@@ -55,27 +45,46 @@ export default function Index() {
         updateNavBarOnVisibilityChange();
       });
       
-      // Clean up subscription
       return () => subscription.remove();
     }
   }, [theme, isDarkMode]);
 
-  // Check if welcome screen has been shown
+  // Check if user is authenticated and welcome screen has been shown
   useEffect(() => {
-    const checkWelcomeStatus = async () => {
+    const checkAppState = async () => {
       try {
-        const hasShownWelcome = await AsyncStorage.getItem(WELCOME_SHOWN_KEY);
-        setHasSeenWelcome(hasShownWelcome === 'true');
+        const [welcomeStatus, sessionData] = await Promise.all([
+          AsyncStorage.getItem(WELCOME_SHOWN_KEY),
+          AsyncStorage.getItem(USER_SESSION_KEY)
+        ]);
+        
+        setHasSeenWelcome(welcomeStatus === 'true');
+        
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          const { data, error } = await supabase.auth.getUser(session.access_token);
+          
+          if (data?.user && !error) {
+            setIsAuthenticated(true);
+          } else {
+            // Session is invalid or expired
+            await AsyncStorage.removeItem(USER_SESSION_KEY);
+            setIsAuthenticated(false);
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
+        
         setIsLoading(false);
       } catch (error) {
-        console.error('Error checking welcome screen status:', error);
-        // Default to showing the main app if there's an error
+        console.error('Error checking app state:', error);
         setHasSeenWelcome(true);
+        setIsAuthenticated(false);
         setIsLoading(false);
       }
     };
 
-    checkWelcomeStatus();
+    checkAppState();
   }, []);
 
   if (isLoading) {
@@ -91,7 +100,16 @@ export default function Index() {
     );
   }
   
-  return hasSeenWelcome ? 
-    <Redirect href="/record/new" /> : 
-    <Redirect href="/welcome" />;
+  // First time user flow: Welcome -> Auth -> App
+  if (!hasSeenWelcome) {
+    return <Redirect href="/welcome" />;
+  }
+  
+  // Logged out user flow: Auth -> App
+  if (!isAuthenticated) {
+    return <Redirect href="/auth?mode=signin" />;
+  }
+  
+  // Authenticated user: Go to main app
+  return <Redirect href="/record/new" />;
 }

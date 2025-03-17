@@ -127,7 +127,7 @@ function AppContent() {
     <>
     
       {/* Include NavigationBarThemeHandler here */}
-      <NavigationBarThemeHandler />
+      <NavigationBarThemeHandler specialState={undefined} specialColor={undefined} specialButtonStyle={undefined} />
       
       {/* Set StatusBar appearance based on theme */}
       <StatusBar style={isDarkMode ? "light" : "dark"} />
@@ -140,6 +140,10 @@ function AppContent() {
         }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
+          <Stack.Screen name="auth" options={{ animation: 'fade' }} />
+          <Stack.Screen name="record/new" />
+          <Stack.Screen name="record/[id]" />
+
         </Stack>
       
       </GestureHandlerRootView>

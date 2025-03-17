@@ -11,6 +11,7 @@ import CustomAlert from '@/components/Modals/CutomAlert';
 import { useTheme } from '@/components/ThemeContext';
 import { useScreenDetails } from '@/components/OrientationControl';
 import { ResponsiveHeader } from '@/components/ResponsiveHeader';
+import { useRealm } from '@realm/react';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const STORAGE_KEY = 'notes_data';
@@ -161,12 +162,13 @@ const FAB = memo(({ theme, isLandscape }) => {
       <View style={styles.fabIcon}>
         <Ionicons name="mic" size={24} color="#ffffff" />
       </View>
-      <Text style={styles.fabText}>Record Note</Text>
+      <Text style={styles.fabText}>Create</Text>
     </Pressable>
   );
 });
 
 export default function NotesScreen() {
+  const realm = useRealm();
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -339,26 +341,7 @@ export default function NotesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <ResponsiveHeader notesCount={notes.length} />
-      {/* <View style={[
-        styles.header, 
-        { 
-          backgroundColor: theme.cardBackground,
-          paddingTop: isLandscape ? 30 : 60 // Adjust padding based on orientation
-        }
-      ]}>
-        <Text style={[
-          styles.welcomeText, 
-          { 
-            color: theme.textColor,
-            fontSize: isLandscape ? 24 : 28 // Smaller font in landscape
-          }
-        ]}>
-          Welcome back!
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.mutedTextColor }]}>You have {notes.length} notes</Text>
-      </View> */}
-      
+      <ResponsiveHeader notesCount={notes.length} />      
       {notes.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons 

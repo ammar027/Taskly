@@ -84,7 +84,7 @@ const WelcomeScreen = () => {
 
   const handleGetStarted = async () => {
     await markWelcomeAsShown();
-    router.replace('/record/new');
+    router.replace('/AuthScreen');
   };
 
   const handleExplore = async () => {
@@ -164,13 +164,13 @@ const WelcomeScreen = () => {
               styles.featureTitle, 
               { color: isDarkMode ? '#ffffff' : '#111827' }
             ]}>
-              On-Device Privacy
+              Device Synced 
             </Text>
             <Text style={[
               styles.featureDescription,
               { color: isDarkMode ? '#a0a0a0' : '#6b7280' }
             ]}>
-              Your data stays on your device
+              Your data syncs thorough all your device securely
             </Text>
           </View>
           
@@ -207,22 +207,6 @@ const WelcomeScreen = () => {
         >
           <Text style={styles.primaryButtonText}>Get Started</Text>
           <Ionicons name="arrow-forward" size={20} color="white" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.secondaryButton, 
-            { 
-              borderColor: '#4F46E5',
-              backgroundColor: isDarkMode ? 'rgba(79, 70, 229, 0.1)' : 'transparent' 
-            }
-          ]}
-          onPress={handleExplore}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.secondaryButtonText, { color: '#4F46E5' }]}>
-            Explore Features
-          </Text>
         </TouchableOpacity>
       </Animated.View>
     </View>

@@ -1,112 +1,128 @@
-import { Stack } from 'expo-router';
-import { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import * as Font from 'expo-font';
-import { Ionicons } from '@expo/vector-icons';
-import * as QuickActions from "expo-quick-actions";
-import { Platform, Linking } from 'react-native';
-import { useQuickActionRouting } from "expo-quick-actions/router";
-import { router } from 'expo-router';
-import { ThemeProvider, useTheme } from '@/components/ThemeContext';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationBarThemeHandler } from '@/components/NavigationBarThemeHandeler'; // Import the new component
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useOrientationControl } from '@/components/OrientationControl';
+import { Stack } from "expo-router"
+import { useEffect } from "react"
+import { StatusBar } from "expo-status-bar"
+import * as Font from "expo-font"
+import { Ionicons } from "@expo/vector-icons"
+import * as QuickActions from "expo-quick-actions"
+import { Platform, Linking } from "react-native"
+import { useQuickActionRouting } from "expo-quick-actions/router"
+import { router } from "expo-router"
+import { ThemeProvider, useTheme } from "@/components/ThemeContext"
+import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { NavigationBarThemeHandler } from "@/components/NavigationBarThemeHandeler" // Import the new component
+import { SafeAreaView } from "react-native-safe-area-context"
+import { useOrientationControl } from "@/components/OrientationControl"
+import { RealmProvider } from "@/components/RealmContext"
+import { AuthProvider, useAuth } from "@/components/AuthContext"
+import SyncService from "@/services/SyncService"
+import { NoteSchema } from "@/models/NoteSchema"
+
+// SyncWrapper component that conditionally renders SyncService
+const SyncWrapper = ({ children }) => {
+  const { user, isLoading } = useAuth()
+
+  return (
+    <>
+      {user && !isLoading && <SyncService userId={user.id} />}
+      {children}
+    </>
+  )
+}
 
 // Create a child component that will have access to the theme context
 function AppContent() {
-  const { isDarkMode } = useTheme();
+  const { isDarkMode } = useTheme()
 
   // Set up automatic routing for Quick Actions
-  useQuickActionRouting();
+  useQuickActionRouting()
 
   useEffect(() => {
     async function loadFonts() {
-      await Font.loadAsync(Ionicons.font);
+      await Font.loadAsync(Ionicons.font)
     }
-    loadFonts();
-  }, []);
+    loadFonts()
+  }, [])
 
   // Handle deep links from Google Assistant
   useEffect(() => {
     // Handle links that launched the app
     const getInitialLink = async () => {
-      const url = await Linking.getInitialURL();
+      const url = await Linking.getInitialURL()
       if (url) {
-        console.log('App launched with URL:', url);
-        handleDeepLink(url);
+        console.log("App launched with URL:", url)
+        handleDeepLink(url)
       }
-    };
-    
-    getInitialLink();
+    }
+
+    getInitialLink()
 
     // Handle incoming links when app is already running
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('Received URL while running:', url);
-      handleDeepLink(url);
-    });
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      console.log("Received URL while running:", url)
+      handleDeepLink(url)
+    })
 
     return () => {
-      subscription.remove();
-    };
-  }, []);
+      subscription.remove()
+    }
+  }, [])
 
   const handleDeepLink = (url: string) => {
-    if (!url) return;
+    if (!url) return
 
-    console.log('Processing deep link:', url);
-    
+    console.log("Processing deep link:", url)
+
     try {
       // Parse URL and get path and query parameters
-      const urlObj = new URL(url);
-      const path = urlObj.pathname || '';
-      const params = {};
-      
+      const urlObj = new URL(url)
+      const path = urlObj.pathname || ""
+      const params = {}
+
       // Extract query parameters
       urlObj.searchParams.forEach((value, key) => {
-        params[key] = value;
-      });
-      
-      console.log('Path:', path);
-      console.log('Parameters:', params);
-      
+        params[key] = value
+      })
+
+      console.log("Path:", path)
+      console.log("Parameters:", params)
+
       // Handle opening record screen
-      if (path.includes('/record/new')) {
-        console.log('Opening new task screen');
-        
+      if (path.includes("/record/new")) {
+        console.log("Opening new task screen")
+
         // Route to the task creation screen with parameters
         router.replace({
           pathname: "/(tabs)/new-task",
           params: {
-            content: params.content || '',
-            description: params.description || '',
-            priority: params.priority || 'medium',
-            assistantRequest: 'true' // Flag that this came from Assistant
-          }
-        });
-        return;
+            content: params.content || "",
+            description: params.description || "",
+            priority: params.priority || "medium",
+            assistantRequest: "true", // Flag that this came from Assistant
+          },
+        })
+        return
       }
-      
+
       // Handle specific task creation with content
-      if (path.includes('/create-task')) {
-        console.log('Creating new task with content:', params.content);
-        
+      if (path.includes("/create-task")) {
+        console.log("Creating new task with content:", params.content)
+
         router.replace({
           pathname: "/(tabs)/new-task",
           params: {
-            content: params.content || '',
-            description: params.description || '',
-            priority: params.priority || 'medium',
-            assistantRequest: 'true',
-            autoStart: 'true' // Auto-start with the content
-          }
-        });
-        return;
+            content: params.content || "",
+            description: params.description || "",
+            priority: params.priority || "medium",
+            assistantRequest: "true",
+            autoStart: "true", // Auto-start with the content
+          },
+        })
+        return
       }
     } catch (error) {
-      console.error('Error handling deep link:', error);
+      console.error("Error handling deep link:", error)
     }
-  };
+  }
 
   useEffect(() => {
     QuickActions.setItems([
@@ -115,48 +131,55 @@ function AppContent() {
         subtitle: "Quickly create a new record",
         icon: Platform.select({
           ios: "symbol:square.and.pencil",
-          android: "ic_appaction_foreground", 
+          android: "ic_appaction_foreground",
         }),
         id: "record_item",
-        params: { href: "/record/new" }
+        params: { href: "/record/new" },
       },
-    ]);
-  }, []);
+    ])
+  }, [])
 
   return (
     <>
-    
       {/* Include NavigationBarThemeHandler here */}
-      <NavigationBarThemeHandler specialState={undefined} specialColor={undefined} specialButtonStyle={undefined} />
-      
+      <NavigationBarThemeHandler
+        specialState={undefined}
+        specialColor={undefined}
+        specialButtonStyle={undefined}
+      />
+
       {/* Set StatusBar appearance based on theme */}
       <StatusBar style={isDarkMode ? "light" : "dark"} />
-      
+
       <GestureHandlerRootView style={{ flex: 1 }}>
-      
-        <Stack screenOptions={{ 
-          headerShown: false,
-          contentStyle: { backgroundColor: isDarkMode ? '#121212' : '#f5f5f5' }
-        }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: isDarkMode ? "#121212" : "#f5f5f5" },
+          }}
+        >
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
-          <Stack.Screen name="auth" options={{ animation: 'fade' }} />
+          <Stack.Screen name="welcome" options={{ animation: "fade" }} />
+          <Stack.Screen name="auth" options={{ animation: "fade" }} />
           <Stack.Screen name="record/new" />
           <Stack.Screen name="record/[id]" />
-
         </Stack>
-      
       </GestureHandlerRootView>
-      </>
-  );
+    </>
+  )
 }
 
 export default function RootLayout() {
-  useOrientationControl();
+  useOrientationControl()
   return (
-    
     <ThemeProvider>
-      <AppContent />
+      <AuthProvider>
+        <RealmProvider schemas={[NoteSchema]}>
+          <SyncWrapper>
+            <AppContent />
+          </SyncWrapper>
+        </RealmProvider>
+      </AuthProvider>
     </ThemeProvider>
-  );
+  )
 }

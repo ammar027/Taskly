@@ -1,20 +1,20 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl, Dimensions, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CategorySelectionModal } from '../../components/Modals/categoriessection';
 import CustomAlert from '@/components/Modals/CutomAlert';
 import { useTheme } from '@/components/ThemeContext';
 import { useScreenDetails } from '@/components/OrientationControl';
 import { ResponsiveHeader } from '@/components/ResponsiveHeader';
-import { useRealm } from '@realm/react';
+import { useRealm } from '@/components/RealmContext'; 
+import { AuthContext } from '@/components/AuthContext'; 
+import NoteService from '@/services/NoteService'; 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const STORAGE_KEY = 'notes_data';
 
 const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLandscape }) => {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -26,10 +26,6 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLands
       params: { id: item.id }
     });
   }, [item.id]);
-
-  const handleShare = useCallback(() => {
-    // Share functionality
-  }, []);
 
   const handleCategorySelect = useCallback(() => {
     setCategoryModalVisible(true);
@@ -76,7 +72,9 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLands
         </View>
         <Text style={[styles.noteContent, { color: theme.subTextColor }]} numberOfLines={2}>{item.content}</Text>
         <View style={styles.noteFooter}>
-          <Text style={[styles.noteDate, { color: theme.mutedTextColor }]}>{item.date}</Text>
+          <Text style={[styles.noteDate, { color: theme.mutedTextColor }]}>
+            {new Date(item.updatedAt).toLocaleDateString()}
+          </Text>
           <View style={styles.actionIcons}>
             <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
               <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
@@ -144,7 +142,7 @@ const FAB = memo(({ theme, isLandscape }) => {
     };
   }, []);
 
-  const { isTabletLandscape, orientation } = useScreenDetails();
+  const { isTabletLandscape } = useScreenDetails();
 
   return (
     <Pressable 
@@ -169,12 +167,14 @@ const FAB = memo(({ theme, isLandscape }) => {
 
 export default function NotesScreen() {
   const realm = useRealm();
+  const { user } = useContext(AuthContext);
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const params = useLocalSearchParams();
   const navigationCount = useRef(0);
   const { isDarkMode } = useTheme();
+  const noteService = useRef(null);
   
   // Use your custom hook for orientation and device detection
   const { isTabletLandscape, isLandscape } = useScreenDetails();
@@ -191,131 +191,168 @@ export default function NotesScreen() {
     loadingText: isDarkMode ? '#e0e0e0' : '#1e293b',
   };
 
+  // Initialize note service when realm and user are available
+  useEffect(() => {
+    if (realm && user) {
+      noteService.current = new NoteService(realm, user.id);
+    }
+  }, [realm, user]);
+
   useEffect(() => {
     navigationCount.current += 1;
     console.log('Navigation count:', navigationCount.current);
     console.log('Received params:', params);
-    console.log('Current notes:', notes);
   }, [params]);
 
   useEffect(() => {
-    console.log('Loading initial notes...');
-    loadNotes();
-  }, []);
+    if (realm && user) {
+      console.log('Loading initial notes from Realm...');
+      loadNotes();
+    }
+  }, [realm, user]);
 
-  const loadNotes = async () => {
+  // Function to load notes from Realm
+  const loadNotes = useCallback(() => {
+    if (!realm || !user || !noteService.current) return;
+    
     try {
-      console.log('Fetching notes from storage...');
-      const savedNotes = await AsyncStorage.getItem(STORAGE_KEY);
-      if (savedNotes) {
-        const parsedNotes = JSON.parse(savedNotes);
-        console.log('Loaded notes from storage:', parsedNotes);
-        setNotes(parsedNotes);
-      } else {
-        console.log('No notes found in storage');
-      }
+      console.log('Fetching notes from Realm...');
+      const allNotes = noteService.current.getAllNotes();
+      
+      // Convert Realm objects to plain objects for React state
+      const plainNotes = Array.from(allNotes).map(note => ({
+        id: note.id,
+        title: note.title || 'Untitled',
+        content: note.content,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+        category: note.category || 'Notes', // Add a default category if needed
+        color: note.color || '#4F46E5', // Add a default color if needed
+        isSynced: note.isSynced
+      }));
+      
+      console.log('Loaded notes from Realm:', plainNotes.length);
+      setNotes(plainNotes);
     } catch (error) {
-      console.error('Error loading notes:', error);
+      console.error('Error loading notes from Realm:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const onRefresh = useCallback(async () => {
-    console.log('Refreshing notes...');
-    setRefreshing(true);
-    try {
-      await loadNotes();
-    } catch (error) {
-      console.error('Error during refresh:', error);
-    } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [realm, user]);
 
+  const onRefresh = useCallback(() => {
+    console.log('Refreshing notes...');
+    setRefreshing(true);
+    loadNotes();
+  }, [loadNotes]);
+
+  // Handle new note creation from params
   useEffect(() => {
-    if (!isLoading) {
-      saveNotes();
-    }
-  }, [notes, isLoading]);
-
-  const saveNotes = async () => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-      console.log('Notes saved to storage successfully');
-    } catch (error) {
-      console.error('Error saving notes:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (params?.newNote && !isLoading) {
+    if (params?.newNote && !isLoading && noteService.current) {
       console.log('Processing new note from params...');
       try {
         const newNoteData = JSON.parse(params.newNote);
         console.log('Parsed new note data:', newNoteData);
         
         // Set default category if none is provided
-        if (!newNoteData.category) {
-          newNoteData.category = 'Notes';
-          newNoteData.color = '#4F46E5';
-        }
+        const category = newNoteData.category || 'Notes';
+        const color = newNoteData.color || '#4F46E5';
         
-        setNotes(prevNotes => {
-          const isDuplicate = prevNotes.some(note => note.id === newNoteData.id);
-          
-          if (isDuplicate) {
-            console.log('Duplicate note detected, not adding');
-            return prevNotes;
-          }
-          
-          const updatedNotes = [newNoteData, ...prevNotes];
-          console.log('Updated notes array:', updatedNotes);
-          return updatedNotes;
-        });
+        // Create the note in Realm
+        const noteId = noteService.current.createNote(
+          newNoteData.title || 'Untitled',
+          newNoteData.content || '',
+          category,
+          color
+        );
+        
+        console.log('Created new note in Realm with ID:', noteId);
+        
+        // Refresh the notes list
+        loadNotes();
       } catch (error) {
         console.error('Error processing new note:', error);
       }
     }
-  }, [params?.newNote, params?.timestamp, isLoading]);
+  }, [params?.newNote, params?.timestamp, isLoading, loadNotes]);
 
+  // Handle note deletion
   const handleDeleteNote = useCallback((noteId) => {
+    if (!noteService.current) return;
+    
     console.log('Deleting note with ID:', noteId);
     
-    setNotes(prevNotes => {
-      const updatedNotes = prevNotes.filter(note => note.id !== noteId);
-      console.log('Notes after deletion:', updatedNotes);
-      return updatedNotes;
-    });
-  }, []);
+    try {
+      // Delete the note in Realm (soft delete)
+      const success = noteService.current.deleteNote(noteId);
+      
+      if (success) {
+        console.log('Note deleted successfully');
+        // Refresh the notes list
+        loadNotes();
+      } else {
+        console.log('Failed to delete note, ID not found');
+      }
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      Alert.alert('Error', 'Failed to delete note');
+    }
+  }, [loadNotes]);
 
-  const handleUpdateCategory = useCallback(async (noteId, selectedCategory) => {
+  // Handle category updates
+  const handleUpdateCategory = useCallback((noteId, selectedCategory) => {
+    if (!noteService.current || !noteId) return;
+    
     console.log('Updating category for note:', noteId, selectedCategory);
     
     try {
-      // Update the note with the new category in state
-      setNotes(prevNotes => {
-        const updatedNotes = prevNotes.map(note => {
-          if (note.id === noteId) {
-            return {
-              ...note,
-              category: selectedCategory.name,
-              color: selectedCategory.color,
-              lastEdited: new Date().toISOString(),
-            };
-          }
-          return note;
+      // Get the note from Realm
+      const note = noteService.current.getNoteById(noteId);
+      
+      if (note) {
+        // Update the note in Realm
+        realm.write(() => {
+          note.category = selectedCategory.name;
+          note.color = selectedCategory.color;
+          note.updatedAt = new Date();
+          note.isSynced = false; // Mark for sync
         });
         
-        console.log('Notes after category update:', updatedNotes);
-        return updatedNotes;
-      });
-      
+        console.log('Note category updated successfully');
+        // Refresh the notes list
+        loadNotes();
+      } else {
+        console.log('Failed to update note category, ID not found');
+      }
     } catch (error) {
       console.error('Error updating note category:', error);
       Alert.alert('Error', 'Failed to update category');
     }
-  }, []);
+  }, [realm, loadNotes]);
+
+  // Set up Realm change listener
+  useEffect(() => {
+    if (!realm || !user) return;
+    
+    // Subscribe to changes in the Note objects
+    const notesResults = realm.objects('Note').filtered('userId == $0 && isDeleted == false', user.id);
+    
+    const listener = (collection, changes) => {
+      // Reload notes when changes are detected
+      loadNotes();
+    };
+    
+    // Add the listener
+    notesResults.addListener(listener);
+    
+    // Remove the listener when the component unmounts
+    return () => {
+      if (notesResults.isValid()) {
+        notesResults.removeListener(listener);
+      }
+    };
+  }, [realm, user, loadNotes]);
 
   const renderItem = useCallback(({ item, index }) => (
     <NoteCard 

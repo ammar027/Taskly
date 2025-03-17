@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import Realm from 'realm';
-import { TaskSchema } from '@/Realm/TaskSchema';
-import { CategorySchema } from '@/Realm/CategorySchema';
+import { NoteSchema } from '@/models/NoteSchema';
 
 // Create context
-const RealmContext = createContext<Realm | null>(null);
+const RealmContext = createContext(null);
 
 // Custom hook for using Realm
 export const useRealm = () => {
@@ -15,23 +14,20 @@ export const useRealm = () => {
   return context;
 };
 
-interface RealmProviderProps {
-  children: React.ReactNode;
-}
-
-export const RealmProvider: React.FC<RealmProviderProps> = ({ children }) => {
-  const [realm, setRealm] = useState<Realm | null>(null);
+export const RealmProvider = ({ children }) => {
+  const [realm, setRealm] = useState(null);
 
   useEffect(() => {
     // Open the Realm database
     const openRealm = async () => {
       try {
         const realmInstance = await Realm.open({
-          schema: [TaskSchema, CategorySchema],
+          schema: [NoteSchema],
           schemaVersion: 1,
         });
         
         setRealm(realmInstance);
+        console.log('Realm opened successfully');
       } catch (error) {
         console.error('Failed to open Realm', error);
       }
@@ -43,13 +39,14 @@ export const RealmProvider: React.FC<RealmProviderProps> = ({ children }) => {
     return () => {
       if (realm) {
         realm.close();
+        console.log('Realm closed');
       }
     };
   }, []);
 
   // Don't render children until Realm is initialized
   if (!realm) {
-    return null;
+    return null; // Or return a loading indicator
   }
 
   return (

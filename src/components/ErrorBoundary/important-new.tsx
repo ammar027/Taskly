@@ -428,7 +428,7 @@ const NewTask = () => {
       const noteData = {
         id: finalTaskData.id,
         title: finalTaskData.title,
-        content: "",
+        content: "No description",
         date: new Date(finalTaskData.created).toISOString().split("T")[0],
         category: finalTaskData.priority === "high" ? "Important" : "Tasks",
         color:

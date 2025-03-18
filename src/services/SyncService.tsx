@@ -1,34 +1,41 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import NetInfo from '@react-native-community/netinfo'
+import NetInfo from '@react-native-community/netinfo';
 import { useRealm } from '@/components/RealmContext';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthContext'; // Import useAuth
 
 export default function SyncService({ userId }) {
   const realm = useRealm();
+  const { isOnline: authIsOnline } = useAuth(); // Get online status from AuthContext
   const appState = useRef(AppState.currentState);
   const syncTimeoutRef = useRef(null);
   const initialSyncDoneRef = useRef(false);
   const [isOnline, setIsOnline] = useState(true);
   const [syncInProgress, setSyncInProgress] = useState(false);
   const pendingSyncRequestRef = useRef(false);
+  const lastSyncAttemptRef = useRef(0);
+  const syncRetryTimeoutRef = useRef(null);
 
   // Network connectivity monitoring
   useEffect(() => {
     // Initial network check
     NetInfo.fetch().then(state => {
-      setIsOnline(state.isConnected);
+      setIsOnline(state.isConnected && state.isInternetReachable !== false);
     });
 
     // Subscribe to network changes
     const unsubscribe = NetInfo.addEventListener(state => {
       const wasOffline = !isOnline;
-      setIsOnline(state.isConnected);
+      const nowOnline = state.isConnected && state.isInternetReachable !== false;
+      
+      setIsOnline(nowOnline);
       
       // If coming back online and we have pending changes, trigger sync
-      if (wasOffline && state.isConnected) {
+      if (wasOffline && nowOnline) {
         console.log('Network reconnected - triggering sync');
-        syncData();
+        // Add a short delay to allow network to stabilize
+        setTimeout(() => syncData(), 2000);
       }
     });
 
@@ -39,6 +46,7 @@ export default function SyncService({ userId }) {
 
   // Master sync function that coordinates both directions
   const syncData = async () => {
+    // First, check conditions that would prevent sync
     if (syncInProgress) {
       // If sync is already in progress, flag for another sync when done
       console.log('Sync already in progress, queueing request');
@@ -46,10 +54,40 @@ export default function SyncService({ userId }) {
       return;
     }
 
-    if (!isOnline || !realm || !userId) {
-      console.log('Cannot sync: offline or missing data', { isOnline, hasRealm: !!realm, userId });
+    // Ensure we have the prerequisites for syncing
+    if (!realm || !userId) {
+      console.log('Cannot sync: missing realm or userId', { hasRealm: !!realm, userId });
       return;
     }
+
+    // Check network connectivity before attempting sync
+    const currentConnectionState = await NetInfo.fetch();
+    const actuallyOnline = currentConnectionState.isConnected && 
+                          currentConnectionState.isInternetReachable !== false;
+    
+    if (!actuallyOnline) {
+      console.log('Cannot sync: device is offline');
+      
+      // Schedule a retry if we haven't tried too recently
+      const now = Date.now();
+      const timeSinceLastAttempt = now - lastSyncAttemptRef.current;
+      
+      if (timeSinceLastAttempt > 60000) { // Only retry if more than 1 minute since last attempt
+        if (syncRetryTimeoutRef.current) {
+          clearTimeout(syncRetryTimeoutRef.current);
+        }
+        
+        syncRetryTimeoutRef.current = setTimeout(() => {
+          console.log('Attempting sync retry...');
+          syncData();
+        }, 60000); // Retry in 1 minute
+      }
+      
+      return;
+    }
+    
+    // Update last attempt timestamp
+    lastSyncAttemptRef.current = Date.now();
 
     try {
       setSyncInProgress(true);
@@ -61,8 +99,14 @@ export default function SyncService({ userId }) {
       await syncToSupabase();
       
       console.log('Sync completed successfully');
+      initialSyncDoneRef.current = true;
     } catch (error) {
-      console.error('Sync failed:', error);
+      console.log('Sync failed:', error.message || 'Unknown error');
+      
+      // If it's a network error, don't log the full stack trace
+      if (!error.message?.includes('Network request failed')) {
+        console.error('Detailed sync error:', error);
+      }
     } finally {
       setSyncInProgress(false);
       
@@ -77,7 +121,7 @@ export default function SyncService({ userId }) {
 
   // Function to sync local data to Supabase with conflict resolution
   const syncToSupabase = async () => {
-    if (!realm || !userId) return;
+    if (!realm || !userId || !isOnline) return;
 
     try {
       // Get all unsynced notes
@@ -112,25 +156,25 @@ export default function SyncService({ userId }) {
           color: note.color,
           isDeleted: note.isDeleted,
           hardDeleted: note.hardDeleted,
-          isCompleted: note.isCompleted // Include completion status
+          isCompleted: note.isCompleted
         }));
         
         const batchPromises = batchNotesData.map(async (noteData) => {
           // Check if this is a hard-deleted note
           if (noteData.hardDeleted === true) {
-            // Actually delete from Supabase instead of updating
-            const { error: deleteError } = await supabase
-              .from('notes')
-              .delete()
-              .eq('id', noteData.id);
-              
-            if (deleteError) {
-              console.error(`Error deleting note ${noteData.id} from Supabase:`, deleteError);
-              return false;
-            }
-            
-            // Find the original note in Realm and mark it as synced, then delete it
             try {
+              // Actually delete from Supabase instead of updating
+              const { error: deleteError } = await supabase
+                .from('notes')
+                .delete()
+                .eq('id', noteData.id);
+                
+              if (deleteError) {
+                console.log(`Error deleting note ${noteData.id} from Supabase:`, deleteError.message);
+                return false;
+              }
+              
+              // Find the original note in Realm and mark it as synced, then delete it
               realm.write(() => {
                 const noteToDelete = realm.objectForPrimaryKey('Note', noteData.id);
                 if (noteToDelete) {
@@ -142,45 +186,45 @@ export default function SyncService({ userId }) {
               console.log(`Note ${noteData.id} permanently deleted from Supabase and local Realm`);
               return true;
             } catch (e) {
-              console.error(`Error deleting note ${noteData.id} from Realm:`, e);
+              console.log(`Error deleting note ${noteData.id}:`, e.message);
               return false;
             }
           }
           
           // Regular sync flow for non-hard-deleted notes
-          // First check if there's a newer version on the server
-          const { data: remoteNote, error: fetchError } = await supabase
-            .from('notes')
-            .select('updated_at')
-            .eq('id', noteData.id)
-            .single();
-            
-          if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
-            console.error(`Error checking remote note ${noteData.id}:`, fetchError);
-            return false;
-          }
-          
-          // If remote note exists and is newer, skip this update to avoid overwriting newer data
-          if (remoteNote && new Date(remoteNote.updated_at) > noteData.updatedAt) {
-            console.log(`Skipping note ${noteData.id} - remote version is newer`);
-            return false;
-          }
-          
-          // Convert data to Supabase format
-          const supabaseNoteData = {
-            id: noteData.id,
-            title: noteData.title,
-            content: noteData.content,
-            created_at: noteData.createdAt.toISOString(),
-            updated_at: noteData.updatedAt.toISOString(),
-            user_id: noteData.userId,
-            category: noteData.category,
-            color: noteData.color,
-            is_deleted: noteData.isDeleted,
-            is_completed: noteData.isCompleted, // Convert isCompleted to is_completed for Supabase
-          };
-
           try {
+            // First check if there's a newer version on the server
+            const { data: remoteNote, error: fetchError } = await supabase
+              .from('notes')
+              .select('updated_at')
+              .eq('id', noteData.id)
+              .single();
+              
+            if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
+              console.log(`Error checking remote note ${noteData.id}:`, fetchError.message);
+              return false;
+            }
+            
+            // If remote note exists and is newer, skip this update to avoid overwriting newer data
+            if (remoteNote && new Date(remoteNote.updated_at) > noteData.updatedAt) {
+              console.log(`Skipping note ${noteData.id} - remote version is newer`);
+              return false;
+            }
+            
+            // Convert data to Supabase format
+            const supabaseNoteData = {
+              id: noteData.id,
+              title: noteData.title,
+              content: noteData.content,
+              created_at: noteData.createdAt.toISOString(),
+              updated_at: noteData.updatedAt.toISOString(),
+              user_id: noteData.userId,
+              category: noteData.category,
+              color: noteData.color,
+              is_deleted: noteData.isDeleted,
+              is_completed: noteData.isCompleted,
+            };
+
             // Upsert to Supabase
             const { error } = await supabase
               .from('notes')
@@ -197,11 +241,11 @@ export default function SyncService({ userId }) {
               console.log(`Note ${noteData.id} synced successfully`);
               return true;
             } else {
-              console.error('Supabase sync error:', error);
+              console.log('Supabase sync error:', error.message);
               return false;
             }
           } catch (e) {
-            console.error('Sync error:', e);
+            console.log('Sync error:', e.message);
             return false;
           }
         });
@@ -211,14 +255,14 @@ export default function SyncService({ userId }) {
       
       console.log('Push sync completed');
     } catch (error) {
-      console.error('Error during sync to Supabase:', error);
+      console.log('Error during sync to Supabase:', error.message);
       throw error; // Re-throw to be caught by the main sync function
     }
   };
 
   // Function to pull data from Supabase to Realm with smart sync
   const syncFromSupabase = async () => {
-    if (!realm || !userId) return;
+    if (!realm || !userId || !isOnline) return;
 
     try {
       console.log('Fetching notes from Supabase...');
@@ -251,10 +295,15 @@ export default function SyncService({ userId }) {
         }
       }
       
+      // Check connection again right before making the request
+      const connectionState = await NetInfo.fetch();
+      if (!connectionState.isConnected) {
+        throw new Error('Network connectivity lost before fetching');
+      }
+      
       const { data: remoteNotes, error } = await query;
       
       if (error) {
-        console.error('Error fetching notes from Supabase:', error);
         throw error;
       }
       
@@ -284,7 +333,7 @@ export default function SyncService({ userId }) {
                   category: remoteNote.category || 'Notes',
                   color: remoteNote.color || '#4F46E5',
                   isDeleted: remoteNote.is_deleted,
-                  isCompleted: remoteNote.is_completed || false, // Handle the completion status
+                  isCompleted: remoteNote.is_completed || false,
                   isSynced: true,
                 });
                 console.log(`Created new local note from remote: ${remoteNote.id}`);
@@ -299,7 +348,7 @@ export default function SyncService({ userId }) {
                   localNote.category = remoteNote.category || 'Notes';
                   localNote.color = remoteNote.color || '#4F46E5';
                   localNote.isDeleted = remoteNote.is_deleted;
-                  localNote.isCompleted = remoteNote.is_completed || false; // Update completion status
+                  localNote.isCompleted = remoteNote.is_completed || false;
                   localNote.isSynced = true;
                   console.log(`Updated local note from remote: ${remoteNote.id}`);
                 } else if (localUpdatedAt > remoteUpdatedAt && !localNote.isSynced) {
@@ -307,53 +356,93 @@ export default function SyncService({ userId }) {
                 }
               }
             } catch (e) {
-              console.error(`Error processing remote note ${remoteNote.id}:`, e);
+              console.log(`Error processing remote note ${remoteNote.id}:`, e.message);
             }
           });
         });
       }
-          
-      initialSyncDoneRef.current = true;
+      
       console.log('Pull sync completed');
     } catch (error) {
-      console.error('Error syncing from Supabase:', error);
+      if (error.message?.includes('Network')) {
+        console.log('Network error during pull sync - will retry later');
+      } else {
+        console.log('Error syncing from Supabase:', error.message);
+      }
       throw error;
     }
   };
   
-  // Run initial sync when component mounts
+  // Run initial sync when component mounts, accounting for online status
   useEffect(() => {
     if (!realm || !userId) return;
     
-    console.log('Initial sync starting...');
-    syncData();
-    
-    // Set up periodic sync every 30 seconds
-    const intervalId = setInterval(() => {
-      if (isOnline) {
+    // Function to safely start initial sync with retry logic
+    const attemptInitialSync = async () => {
+      console.log('Initial sync starting...');
+      
+      // Check if we're actually online
+      const connectionState = await NetInfo.fetch();
+      if (connectionState.isConnected && connectionState.isInternetReachable !== false) {
         syncData();
+        
+        // Set up periodic sync every 20 seconds when online
+        const intervalId = setInterval(() => {
+          NetInfo.fetch().then(state => {
+            if (state.isConnected) {
+              syncData();
+            }
+          });
+        }, 30000);
+        
+        return intervalId;
+      } else {
+        console.log('Device offline - scheduling initial sync retry');
+        // Try again in 30 seconds
+        return setTimeout(attemptInitialSync, 50000);
       }
-    }, 20000);
+    };
+    
+    // Start the initial sync process
+    const timerId = attemptInitialSync();
     
     return () => {
-      clearInterval(intervalId);
+      clearInterval(timerId);
+      clearTimeout(timerId);
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
+      if (syncRetryTimeoutRef.current) {
+        clearTimeout(syncRetryTimeoutRef.current);
+      }
     };
-  }, [realm, userId, isOnline]);
+  }, [realm, userId]);
 
   // Handle app state changes (foreground/background)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App has come to the foreground - sync from server
-        console.log('App has come to the foreground, syncing data...');
-        syncData();
+        // App has come to the foreground - sync from server if online
+        console.log('App has come to the foreground, checking connectivity...');
+        NetInfo.fetch().then(state => {
+          if (state.isConnected) {
+            console.log('Online - triggering sync');
+            syncData();
+          } else {
+            console.log('Offline - skipping sync');
+          }
+        });
       } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-        // App is going to the background - sync to server
-        console.log('App is going to the background, syncing data...');
-        syncData();
+        // App is going to the background - sync to server if online
+        console.log('App is going to the background, checking connectivity...');
+        NetInfo.fetch().then(state => {
+          if (state.isConnected) {
+            console.log('Online - triggering sync');
+            syncData();
+          } else {
+            console.log('Offline - skipping sync');
+          }
+        });
       }
       
       appState.current = nextAppState;
@@ -362,11 +451,11 @@ export default function SyncService({ userId }) {
     return () => {
       subscription.remove();
     };
-  }, [realm, userId, isOnline]);
+  }, [realm, userId]);
 
-  // Set up Supabase realtime subscription
+  // Set up Supabase realtime subscription only when online
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isOnline) return;
     
     // Subscribe to changes on the notes table for this user
     const subscription = supabase
@@ -387,7 +476,11 @@ export default function SyncService({ userId }) {
           }
           
           syncTimeoutRef.current = setTimeout(() => {
-            syncFromSupabase();
+            NetInfo.fetch().then(state => {
+              if (state.isConnected) {
+                syncFromSupabase();
+              }
+            });
           }, 1000);
         }
       )

@@ -9,6 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/components/AuthContext';
 
 const USER_SESSION_KEY = 'user_session';
 
@@ -18,6 +19,7 @@ export default function SettingsScreen() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { isOnline } = useAuth();
   
   // Create theme-specific styles
   const themeColors = {
@@ -33,8 +35,10 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    fetchUserData();
-  }, []);
+    if (isOnline) {
+      fetchUserData();
+    }
+  }, [isOnline]);
 
   const fetchUserData = async () => {
     setIsLoading(true);
@@ -139,6 +143,27 @@ export default function SettingsScreen() {
       .substring(0, 2);
   };
 
+  // const OfflineBanner = () => (
+  //   !isOnline ? (
+  //     <View 
+  //       style={{ 
+  //         backgroundColor: '#FFA500', 
+  //         padding: 5, 
+  //         alignItems: 'center',
+  //         position: 'absolute',
+  //         top: 0,
+  //         left: 0,
+  //         right: 0,
+  //         zIndex: 100,
+  //       }}
+  //     >
+  //       <Text style={{ color: '#000', fontWeight: 'bold' }}>
+  //         Offline Mode - Limited functionality available
+  //       </Text>
+  //     </View>
+  //   ) : null
+  // );
+
   const SettingItem = ({ icon, text, rightElement, onPress, showBorder = true }) => (
     <Pressable 
       style={({ pressed }) => [
@@ -177,42 +202,45 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      
+      {/* <OfflineBanner/> */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: themeColors.textColor }]}>Settings</Text>
       </View>
       
-      {/* User Profile Section */}
-      <View style={styles.section}>
-        <View style={[styles.profileCard, { backgroundColor: themeColors.cardColor }]}>
-          <View style={styles.profileContent}>
-            {userData?.avatar ? (
-              <Image 
-                source={{ uri: userData.avatar }} 
-                style={styles.profileAvatar} 
-              />
-            ) : (
-              <View style={[styles.profileInitials, { backgroundColor: themeColors.accentColor }]}>
-                <Text style={styles.initialsText}>
-                  {userData ? getInitials(userData.name) : '?'}
+      {/* User Profile Section - Only show when online */}
+      {isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.profileCard, { backgroundColor: themeColors.cardColor }]}>
+            <View style={styles.profileContent}>
+              {userData?.avatar ? (
+                <Image 
+                  source={{ uri: userData.avatar }} 
+                  style={styles.profileAvatar} 
+                />
+              ) : (
+                <View style={[styles.profileInitials, { backgroundColor: themeColors.accentColor }]}>
+                  <Text style={styles.initialsText}>
+                    {userData ? getInitials(userData.name) : '?'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: themeColors.textColor }]}>
+                  {userData?.name || 'Loading...'}
+                </Text>
+                <Text style={[styles.profileEmail, { color: themeColors.subTextColor }]}>
+                  {userData?.email || ''}
+                </Text>
+                <Text style={[styles.profileDate, { color: themeColors.subTextColor }]}>
+                  {userData ? `Member since ${userData.created_at}` : ''}
                 </Text>
               </View>
-            )}
-            <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: themeColors.textColor }]}>
-                {userData?.name || 'Loading...'}
-              </Text>
-              <Text style={[styles.profileEmail, { color: themeColors.subTextColor }]}>
-                {userData?.email || ''}
-              </Text>
-              <Text style={[styles.profileDate, { color: themeColors.subTextColor }]}>
-                {userData ? `Member since ${userData.created_at}` : ''}
-              </Text>
             </View>
           </View>
         </View>
-      </View>
+      )}
       
+      {/* Appearance Section - Always visible */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           Appearance
@@ -241,6 +269,7 @@ export default function SettingsScreen() {
         </Text>
       </View>
       
+      {/* About Section - Show version always, but Privacy Policy only when online */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           About
@@ -254,38 +283,64 @@ export default function SettingsScreen() {
                 1.0.0
               </Text>
             }
-            showBorder={true}
+            showBorder={isOnline} // Only show border if there's another item below
           />
-          <SettingItem 
-            icon="shield-checkmark" 
-            text="Privacy Policy" 
-            rightElement={
-              <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
-            }
-            onPress={handlePrivacyPolicy}
-            showBorder={false}
-          />
+          
+          {/* Privacy Policy - Only when online */}
+          {isOnline && (
+            <SettingItem 
+              icon="shield-checkmark" 
+              text="Privacy Policy" 
+              rightElement={
+                <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
+              }
+              onPress={handlePrivacyPolicy}
+              showBorder={false}
+            />
+          )}
         </View>
       </View>
       
-      {/* Logout section */}
-      <View style={styles.section}>
-        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
-          <SettingItem 
-            icon="log-out" 
-            text="Logout" 
-            rightElement={
-              <Ionicons 
-                name="chevron-forward" 
-                size={20} 
-                color={themeColors.dangerColor} 
-              />
-            }
-            onPress={handleLogout}
-            showBorder={false}
-          />
+      {/* Logout section - Only when online */}
+      {isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+            <SettingItem 
+              icon="log-out" 
+              text="Logout" 
+              rightElement={
+                <Ionicons 
+                  name="chevron-forward" 
+                  size={20} 
+                  color={themeColors.dangerColor} 
+                />
+              }
+              onPress={handleLogout}
+              showBorder={false}
+            />
+          </View>
         </View>
-      </View>
+      )}
+      
+      {/* Offline Mode Message - Show when offline */}
+      {!isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.offlineMessage, { backgroundColor: themeColors.cardColor }]}>
+            <Ionicons 
+              name="cloud-offline" 
+              size={32} 
+              color={themeColors.subTextColor} 
+              style={styles.offlineIcon} 
+            />
+            <Text style={[styles.offlineText, { color: themeColors.textColor }]}>
+              You're currently offline
+            </Text>
+            <Text style={[styles.offlineSubText, { color: themeColors.subTextColor }]}>
+              Some features are unavailable without an internet connection
+            </Text>
+          </View>
+        </View>
+      )}
       
       <Text style={[styles.footerText, { color: themeColors.subTextColor }]}>
         © 2025 Taskly
@@ -374,7 +429,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 32,
   },
-  // New styles for profile section
+  // Profile section styles
   profileCard: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -428,5 +483,34 @@ const styles = StyleSheet.create({
   profileDate: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  // Offline message styles
+  offlineMessage: {
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  offlineIcon: {
+    marginBottom: 10,
+  },
+  offlineText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  offlineSubText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

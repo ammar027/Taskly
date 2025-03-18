@@ -4,12 +4,12 @@ import { StatusBar } from "expo-status-bar"
 import * as Font from "expo-font"
 import { Ionicons } from "@expo/vector-icons"
 import * as QuickActions from "expo-quick-actions"
-import { Platform, Linking } from "react-native"
+import { Platform, Linking, View, Text } from "react-native"
 import { useQuickActionRouting } from "expo-quick-actions/router"
 import { router } from "expo-router"
 import { ThemeProvider, useTheme } from "@/components/ThemeContext"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
-import { NavigationBarThemeHandler } from "@/components/NavigationBarThemeHandeler" // Import the new component
+import { NavigationBarThemeHandler } from "@/components/NavigationBarThemeHandeler"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useOrientationControl } from "@/components/OrientationControl"
 import { RealmProvider } from "@/components/RealmContext"
@@ -17,13 +17,63 @@ import { AuthProvider, useAuth } from "@/components/AuthContext"
 import SyncService from "@/services/SyncService"
 import { NoteSchema } from "@/models/NoteSchema"
 
-// SyncWrapper component that conditionally renders SyncService
-const SyncWrapper = ({ children }) => {
-  const { user, isLoading } = useAuth()
+// Auth-aware router wrapper component
+const AuthAwareRouter = ({ children }) => {
+  const { user, isLoading, authInitialized, isOnline, pendingSessionValidation } = useAuth()
+  const { isDarkMode } = useTheme()
+
+  useEffect(() => {
+    // Only redirect to auth if fully initialized, not loading,
+    // we're online (or we've confirmed no valid session while offline)
+    if (authInitialized && !isLoading && !user) {
+      // If we're offline and have a pending session validation,
+      // don't redirect - trust the stored session for now
+      if (!isOnline && pendingSessionValidation) {
+        console.log('Offline with pending validation - staying on current screen')
+        return
+      }
+      
+      console.log('No authenticated user - redirecting to auth')
+      router.replace('/auth?mode=signin')
+    }
+  }, [user, isLoading, authInitialized, isOnline, pendingSessionValidation])
+
+  // Show offline banner when offline
+  const OfflineBanner = () => (
+    !isOnline ? (
+      <View 
+        style={{ 
+          backgroundColor: '#FFA500', 
+          padding: 5, 
+          alignItems: 'center',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+        }}
+      >
+        <Text style={{ color: '#000', fontWeight: 'bold' }}>
+          Offline Mode - Limited functionality available
+        </Text>
+      </View>
+    ) : null
+  )
 
   return (
     <>
-      {user && !isLoading && <SyncService userId={user.id} />}
+      {children}
+    </>
+  )
+}
+
+// SyncWrapper component that conditionally renders SyncService
+const SyncWrapper = ({ children }) => {
+  const { user, isLoading, isOnline } = useAuth()
+
+  return (
+    <>
+      {user && !isLoading && isOnline && <SyncService userId={user.id} />}
       {children}
     </>
   )
@@ -152,18 +202,20 @@ function AppContent() {
       <StatusBar style={isDarkMode ? "light" : "dark"} />
 
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: isDarkMode ? "#121212" : "#f5f5f5" },
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="welcome" options={{ animation: "fade" }} />
-          <Stack.Screen name="auth" options={{ animation: "fade" }} />
-          <Stack.Screen name="record/new" />
-          <Stack.Screen name="record/[id]" />
-        </Stack>
+        <AuthAwareRouter>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: isDarkMode ? "#121212" : "#f5f5f5" },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="welcome" options={{ animation: "fade" }} />
+            <Stack.Screen name="auth" options={{ animation: "fade" }} />
+            <Stack.Screen name="record/new" />
+            <Stack.Screen name="record/[id]" />
+          </Stack>
+        </AuthAwareRouter>
       </GestureHandlerRootView>
     </>
   )

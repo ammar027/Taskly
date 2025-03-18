@@ -20,12 +20,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as NavigationBar from "expo-navigation-bar"
 import { supabase } from "@/lib/supabase"
 import { Image } from "expo-image"
+import NetInfo from "@react-native-community/netinfo"
+import { useAuth } from "@/components/AuthContext"
 
-const USER_SESSION_KEY = "user_session"
 const DEFAULT_AUTH_MODE = "signup" // Set default mode to signup for first visit
 
 const AuthScreen = () => {
   const { isDarkMode } = useTheme()
+  const { signIn, signUp, isOnline } = useAuth()
   const params = useLocalSearchParams()
   const isSignUp = params.mode ? params.mode === "signup" : DEFAULT_AUTH_MODE === "signup"
 
@@ -38,10 +40,13 @@ const AuthScreen = () => {
   const [slideAnim] = useState(new Animated.Value(30))
   const [logoScale] = useState(new Animated.Value(1))
   const [keyboardVisible, setKeyboardVisible] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState(true)
 
   useEffect(() => {
-    // Check if user is already logged in
-    checkAuthStatus()
+    // Check network status
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setConnectionStatus(state.isConnected)
+    })
 
     // Animate content
     Animated.sequence([
@@ -88,6 +93,7 @@ const AuthScreen = () => {
     )
 
     return () => {
+      unsubscribe()
       keyboardWillShowListener.remove()
       keyboardWillHideListener.remove()
     }
@@ -107,31 +113,6 @@ const AuthScreen = () => {
     updateNavBar()
   }, [isDarkMode])
 
-  const checkAuthStatus = async () => {
-    try {
-      const session = await AsyncStorage.getItem(USER_SESSION_KEY)
-
-      if (session) {
-        const sessionData = JSON.parse(session)
-        const { data, error } = await supabase.auth.getUser(sessionData.access_token)
-
-        if (data?.user && !error) {
-          router.replace("/(tabs)")
-        }
-      }
-    } catch (error) {
-      console.error("Error checking auth status:", error)
-    }
-  }
-
-  const saveSession = async (session) => {
-    try {
-      await AsyncStorage.setItem(USER_SESSION_KEY, JSON.stringify(session))
-    } catch (error) {
-      console.error("Error saving session:", error)
-    }
-  }
-
   const handleSignIn = async () => {
     Keyboard.dismiss()
     if (!email || !password) {
@@ -139,17 +120,24 @@ const AuthScreen = () => {
       return
     }
 
+    if (!connectionStatus) {
+      Alert.alert(
+        "Offline Mode",
+        "You appear to be offline. Sign in requires an internet connection.",
+        [{ text: "OK" }]
+      )
+      return
+    }
+
     setIsLoading(true)
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { data, error } = await signIn(email, password)
 
       if (error) throw error
 
-      await saveSession(data.session)
-      router.replace("/record/new")
+      if (data) {
+        router.replace("/(tabs)")
+      }
     } catch (error) {
       Alert.alert("Error", error.message || "Failed to sign in")
     } finally {
@@ -164,23 +152,23 @@ const AuthScreen = () => {
       return
     }
 
+    if (!connectionStatus) {
+      Alert.alert(
+        "Offline Mode",
+        "You appear to be offline. Sign up requires an internet connection.",
+        [{ text: "OK" }]
+      )
+      return
+    }
+
     setIsLoading(true)
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      })
+      const { data, error } = await signUp(email, password, { full_name: name })
 
       if (error) throw error
 
-      if (data.session) {
-        await saveSession(data.session)
-        router.replace("/record/new")
+      if (data?.session) {
+        router.replace("/(tabs)")
       } else {
         // Email confirmation required
         Alert.alert(
@@ -200,6 +188,15 @@ const AuthScreen = () => {
     Keyboard.dismiss()
     if (!email) {
       Alert.alert("Error", "Please enter your email address")
+      return
+    }
+
+    if (!connectionStatus) {
+      Alert.alert(
+        "Offline Mode",
+        "You appear to be offline. Password reset requires an internet connection.",
+        [{ text: "OK" }]
+      )
       return
     }
 
@@ -243,6 +240,14 @@ const AuthScreen = () => {
             barStyle={isDarkMode ? "light-content" : "dark-content"}
             backgroundColor={isDarkMode ? "#121212" : "#f8fafc"}
           />
+
+          {/* Network Status Banner */}
+          {!connectionStatus && (
+            <View style={styles.offlineBanner}>
+              <Ionicons name="cloud-offline-outline" size={18} color="white" />
+              <Text style={styles.offlineBannerText}>You are offline</Text>
+            </View>
+          )}
 
           {/* Header logo and branding */}
           <Animated.View
@@ -375,18 +380,24 @@ const AuthScreen = () => {
               </View>
             </View>
 
-            {/* {!isSignUp && (
+            {!isSignUp && (
               <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPassword}>
                 <Text style={[styles.forgotPasswordText, { color: '#4F46E5' }]}>
                   Forgot password?
                 </Text>
               </TouchableOpacity>
-            )} */}
+            )}
 
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: "#4F46E5" }]}
+              style={[
+                styles.primaryButton, 
+                { 
+                  backgroundColor: connectionStatus ? "#4F46E5" : "#a5a5a5",
+                  opacity: connectionStatus ? 1 : 0.8
+                }
+              ]}
               onPress={isSignUp ? handleSignUp : handleSignIn}
-              disabled={isLoading}
+              disabled={isLoading || !connectionStatus}
               activeOpacity={0.8}
             >
               {isLoading ? (
@@ -427,79 +438,73 @@ const AuthScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 26,
-    paddingTop: 30,
-    paddingBottom: 30,
-    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   logoContainer: {
     alignItems: "center",
     justifyContent: "center",
   },
   image: {
-    width: 330,
-    alignSelf: "center",
-    justifyContent: 'center',
-  },
-  tagline: {
-    fontWeight: "700",
+    width: 300,
+    height: 60,
   },
   formContainer: {
     width: "100%",
-    flex: 1,
-    justifyContent:'center'
+    maxWidth: 350,
+  },
+  tagline: {
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 30,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    height: 56,
     borderRadius: 12,
-    borderWidth: 0.3,
-    borderColor: "grey",
+    height: 56,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 3,
+    elevation: 1,
   },
   inputIcon: {
-    marginLeft: 16,
+    paddingLeft: 16,
   },
   input: {
     flex: 1,
     height: "100%",
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 12,
     fontSize: 16,
-  },
-  passwordToggle: {
-    padding: 12,
   },
   forgotPassword: {
     alignSelf: "flex-end",
-    marginTop: 4,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 24,
   },
   forgotPasswordText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   primaryButton: {
-    flexDirection: "row",
     height: 56,
     borderRadius: 12,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    marginTop: 16,
   },
   primaryButtonText: {
     color: "white",
@@ -509,8 +514,8 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: 15,
+    marginTop: 30,
+    marginBottom: 20,
   },
   bottomText: {
     fontSize: 14,
@@ -520,6 +525,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-})
+  passwordToggle: {
+    padding: 10,
+  },
+  offlineBanner: {
+    backgroundColor: "#f97316",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 350,
+  },
+  offlineBannerText: {
+    color: "white",
+    fontWeight: "500",
+    marginLeft: 6,
+  },
+});
 
-export default AuthScreen
+export default AuthScreen;

@@ -42,7 +42,7 @@
       "bundleIdentifier": "com.taskly"
     },
     "web": {
-      "favicon": "./assets/images/app-icon-web-favicon.png",
+      "favicon": "./assets/icons/icon.png",
       "bundler": "metro"
     },
     "plugins": [

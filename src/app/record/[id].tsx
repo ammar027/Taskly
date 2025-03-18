@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/components/ThemeContext';
-
-const STORAGE_KEY = 'notes_data';
+import { useRealm } from '@/components/RealmContext';
+import { AuthContext } from '@/components/AuthContext';
+import NoteService from '@/services/NoteService';
 
 const LoadingSpinner = () => {
   const { isDarkMode } = useTheme();
@@ -71,24 +71,60 @@ const Header = ({ isEditing, onBack, onEdit, onSave, onCancel }) => {
   );
 };
 
-const useNoteData = (id) => {
+export default function NoteDetails() {
+  const { isDarkMode } = useTheme();
+  const { id } = useLocalSearchParams();
+  const realm = useRealm();
+  const { user } = useContext(AuthContext);
   const [note, setNote] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    category: ''
+  });
+  const [noteService, setNoteService] = useState(null);
 
+  // Initialize note service
+  useEffect(() => {
+    if (realm && user) {
+      setNoteService(new NoteService(realm, user.id));
+    }
+  }, [realm, user]);
+
+  // Load note data
   useEffect(() => {
     const loadNoteDetails = async () => {
+      if (!noteService) return;
+      
       try {
-        const savedNotes = await AsyncStorage.getItem(STORAGE_KEY);
-        if (savedNotes) {
-          const parsedNotes = JSON.parse(savedNotes);
-          const foundNote = parsedNotes.find(note => note.id === id);
+        console.log('Loading note with ID:', id);
+        const foundNote = noteService.getNoteById(id);
+        
+        if (foundNote) {
+          // Convert Realm object to plain object
+          const plainNote = {
+            id: foundNote.id,
+            title: foundNote.title || 'Untitled',
+            content: foundNote.content || '',
+            category: foundNote.category || 'Notes',
+            color: foundNote.color || '#4F46E5',
+            createdAt: foundNote.createdAt,
+            updatedAt: foundNote.updatedAt
+          };
           
-          if (foundNote) {
-            setNote(foundNote);
-          } else {
-            setError('Note not found');
-          }
+          setNote(plainNote);
+          setFormData({
+            title: plainNote.title,
+            content: plainNote.content,
+            category: plainNote.category,
+            color: plainNote.color
+          });
+        } else {
+          console.error('Note not found with ID:', id);
+          setError('Note not found');
         }
       } catch (error) {
         console.error('Error loading note details:', error);
@@ -98,54 +134,10 @@ const useNoteData = (id) => {
       }
     };
 
-    loadNoteDetails();
-  }, [id]);
-
-  const updateNote = async (updatedData) => {
-    try {
-      setIsLoading(true);
-      const savedNotes = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!savedNotes) throw new Error('No notes found');
-      
-      const parsedNotes = JSON.parse(savedNotes);
-      const updatedNotes = parsedNotes.map(n => 
-        n.id === id ? { ...n, ...updatedData, lastEdited: new Date().toISOString() } : n
-      );
-      
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedNotes));
-      setNote(prev => ({ ...prev, ...updatedData, lastEdited: new Date().toISOString() }));
-      return true;
-    } catch (error) {
-      console.error('Error saving note:', error);
-      throw new Error('Failed to save changes');
-    } finally {
-      setIsLoading(false);
+    if (noteService) {
+      loadNoteDetails();
     }
-  };
-
-  return { note, isLoading, error, updateNote };
-};
-
-export default function NoteDetails() {
-  const { isDarkMode } = useTheme();
-  const { id } = useLocalSearchParams();
-  const { note, isLoading, error, updateNote } = useNoteData(id);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    category: ''
-  });
-
-  useEffect(() => {
-    if (note) {
-      setFormData({
-        title: note.title,
-        content: note.content,
-        category: note.category
-      });
-    }
-  }, [note]);
+  }, [id, noteService]);
 
   const handleSave = useCallback(async () => {
     if (!formData.title.trim()) {
@@ -154,19 +146,39 @@ export default function NoteDetails() {
     }
 
     try {
-      await updateNote(formData);
-      setIsEditing(false);
-      Alert.alert('Success', 'Note updated successfully');
+      const success = noteService.updateNote(id, {
+        title: formData.title,
+        content: formData.content,
+        category: formData.category,
+      });
+      
+      if (success) {
+        // Update local state
+        setNote(prev => ({
+          ...prev,
+          title: formData.title,
+          content: formData.content,
+          category: formData.category,
+          updatedAt: new Date()
+        }));
+        
+        setIsEditing(false);
+        Alert.alert('Success', 'Note updated successfully');
+      } else {
+        Alert.alert('Error', 'Failed to update note');
+      }
     } catch (error) {
-      Alert.alert('Error', error.message);
+      console.error('Error saving note:', error);
+      Alert.alert('Error', 'Failed to save changes');
     }
-  }, [formData, updateNote]);
+  }, [formData, id, noteService]);
 
   const handleCancel = () => {
     setFormData({
       title: note.title,
       content: note.content,
-      category: note.category
+      category: note.category,
+      color: note.color
     });
     setIsEditing(false);
   };
@@ -220,17 +232,17 @@ export default function NoteDetails() {
         <View style={styles.dateContainer}>
           <Ionicons name="calendar-outline" size={14} color={isDarkMode ? '#9ca3af' : '#64748B'} />
           <Text style={[styles.dateText, { color: isDarkMode ? '#9ca3af' : '#64748B' }]}>
-            {new Date(note.date).toLocaleDateString('en-US', {
+            {new Date(note.createdAt).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
             })}
           </Text>
-          {note.lastEdited && (
+          {note.updatedAt && note.updatedAt.getTime() !== note.createdAt.getTime() && (
             <>
               <Text style={[styles.dateText, { color: isDarkMode ? '#9ca3af' : '#64748B' }]}> • Edited: </Text>
               <Text style={[styles.dateText, { color: isDarkMode ? '#9ca3af' : '#64748B' }]}>
-                {new Date(note.lastEdited).toLocaleDateString('en-US', {
+                {new Date(note.updatedAt).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',

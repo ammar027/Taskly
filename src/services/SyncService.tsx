@@ -99,50 +99,100 @@ export default function SyncService({ userId }) {
         const batchEnd = Math.min((i + 1) * batchSize, unsyncedNotes.length);
         const currentBatch = unsyncedNotes.slice(batchStart, batchEnd);
         
-        const batchPromises = currentBatch.map(async (note) => {
+        // Convert Realm objects to plain JS objects before processing
+        // This helps avoid the "accessing deleted object" error
+        const batchNotesData = currentBatch.map(note => ({
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          userId: note.userId,
+          category: note.category,
+          color: note.color,
+          isDeleted: note.isDeleted,
+          hardDeleted: note.hardDeleted
+        }));
+        
+        const batchPromises = batchNotesData.map(async (noteData) => {
+          // Check if this is a hard-deleted note
+          if (noteData.hardDeleted === true) {
+            // Actually delete from Supabase instead of updating
+            const { error: deleteError } = await supabase
+              .from('notes')
+              .delete()
+              .eq('id', noteData.id);
+              
+            if (deleteError) {
+              console.error(`Error deleting note ${noteData.id} from Supabase:`, deleteError);
+              return false;
+            }
+            
+            // Find the original note in Realm and mark it as synced, then delete it
+            try {
+              realm.write(() => {
+                const noteToDelete = realm.objectForPrimaryKey('Note', noteData.id);
+                if (noteToDelete) {
+                  // We need to delete it directly now that it's been deleted from Supabase
+                  realm.delete(noteToDelete);
+                }
+              });
+              
+              console.log(`Note ${noteData.id} permanently deleted from Supabase and local Realm`);
+              return true;
+            } catch (e) {
+              console.error(`Error deleting note ${noteData.id} from Realm:`, e);
+              return false;
+            }
+          }
+          
+          // Regular sync flow for non-hard-deleted notes
           // First check if there's a newer version on the server
           const { data: remoteNote, error: fetchError } = await supabase
             .from('notes')
             .select('updated_at')
-            .eq('id', note.id)
+            .eq('id', noteData.id)
             .single();
             
           if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
-            console.error(`Error checking remote note ${note.id}:`, fetchError);
+            console.error(`Error checking remote note ${noteData.id}:`, fetchError);
             return false;
           }
           
           // If remote note exists and is newer, skip this update to avoid overwriting newer data
-          if (remoteNote && new Date(remoteNote.updated_at) > note.updatedAt) {
-            console.log(`Skipping note ${note.id} - remote version is newer`);
+          if (remoteNote && new Date(remoteNote.updated_at) > noteData.updatedAt) {
+            console.log(`Skipping note ${noteData.id} - remote version is newer`);
             return false;
           }
           
-          // Convert Realm object to plain object
-          const noteData = {
-            id: note.id,
-            title: note.title,
-            content: note.content,
-            created_at: note.createdAt.toISOString(),
-            updated_at: note.updatedAt.toISOString(),
-            user_id: note.userId,
-            category: note.category,
-            color: note.color,
-            is_deleted: note.isDeleted,
+          // Convert data to Supabase format
+          const supabaseNoteData = {
+            id: noteData.id,
+            title: noteData.title,
+            content: noteData.content,
+            created_at: noteData.createdAt.toISOString(),
+            updated_at: noteData.updatedAt.toISOString(),
+            user_id: noteData.userId,
+            category: noteData.category,
+            color: noteData.color,
+            is_deleted: noteData.isDeleted,
           };
 
           try {
             // Upsert to Supabase
             const { error } = await supabase
               .from('notes')
-              .upsert(noteData);
+              .upsert(supabaseNoteData);
 
             if (!error) {
               // Mark as synced in Realm
               realm.write(() => {
-                note.isSynced = true;
+                const noteToUpdate = realm.objectForPrimaryKey('Note', noteData.id);
+                if (noteToUpdate) {
+                  noteToUpdate.isSynced = true;
+                }
               });
-              console.log(`Note ${note.id} synced successfully`);
+              console.log(`Note ${noteData.id} synced successfully`);
               return true;
             } else {
               console.error('Supabase sync error:', error);
@@ -274,12 +324,12 @@ export default function SyncService({ userId }) {
     console.log('Initial sync starting...');
     syncData();
     
-    // Set up periodic sync every 30 seconds (increased from 10 to reduce server load)
+    // Set up periodic sync every 30 seconds
     const intervalId = setInterval(() => {
       if (isOnline) {
         syncData();
       }
-    }, 30000);
+    }, 20000);
     
     return () => {
       clearInterval(intervalId);

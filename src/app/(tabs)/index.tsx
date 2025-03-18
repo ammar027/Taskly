@@ -13,6 +13,8 @@ import { ResponsiveHeader } from '@/components/ResponsiveHeader';
 import { useRealm } from '@/components/RealmContext'; 
 import { AuthContext } from '@/components/AuthContext'; 
 import NoteService from '@/services/NoteService'; 
+import SyncStatusIndicator from '@/components/SyncStatusIndicator';
+import DeletedNotesModal from '@/components/Modals/DeletedNotes';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -21,6 +23,7 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLands
   const [alertVisible, setAlertVisible] = useState(false);
   
   const handlePress = useCallback(() => {
+    console.log('Navigating to note with ID:', item.id);
     router.push({
       pathname: '/record/[id]',
       params: { id: item.id }
@@ -160,10 +163,12 @@ const FAB = memo(({ theme, isLandscape }) => {
       <View style={styles.fabIcon}>
         <Ionicons name="mic" size={24} color="#ffffff" />
       </View>
-      <Text style={styles.fabText}>Create</Text>
+      <Text style={styles.fabText}>Create Task</Text>
     </Pressable>
   );
 });
+
+
 
 export default function NotesScreen() {
   const realm = useRealm();
@@ -175,6 +180,7 @@ export default function NotesScreen() {
   const navigationCount = useRef(0);
   const { isDarkMode } = useTheme();
   const noteService = useRef(null);
+  const [deletedNotesModalVisible, setDeletedNotesModalVisible] = useState(false);
   
   // Use your custom hook for orientation and device detection
   const { isTabletLandscape, isLandscape } = useScreenDetails();
@@ -367,6 +373,10 @@ export default function NotesScreen() {
 
   const keyExtractor = useCallback((item) => item.id, []);
 
+  const toggleDeletedNotesModal = useCallback(() => {
+    setDeletedNotesModalVisible(prev => !prev);
+  }, []);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.backgroundColor }]}>
@@ -378,7 +388,11 @@ export default function NotesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <ResponsiveHeader notesCount={notes.length} />      
+      <ResponsiveHeader
+        notesCount={notes.length} 
+        onTrashPress={toggleDeletedNotesModal} 
+        theme={theme} 
+      />  
       {notes.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons 
@@ -418,6 +432,12 @@ export default function NotesScreen() {
       )}
       
       <FAB theme={theme} isLandscape={isLandscape} />
+            <DeletedNotesModal
+              visible={deletedNotesModalVisible}
+              onClose={toggleDeletedNotesModal}
+              theme={theme}
+              noteService={noteService}
+            />
     </View>
   );
 }

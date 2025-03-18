@@ -18,7 +18,7 @@ import DeletedNotesModal from '@/components/Modals/DeletedNotes';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLandscape }) => {
+const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, onToggleCompletion, theme, isLandscape }) => {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [alertVisible, setAlertVisible] = useState(false);
   
@@ -39,6 +39,12 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLands
       onUpdateCategory(item.id, category);
     }
   }, [item.id, onUpdateCategory]);
+  
+  const handleToggleCompletion = useCallback(() => {
+    if (onToggleCompletion) {
+      onToggleCompletion(item.id, !item.isCompleted);
+    }
+  }, [item.id, item.isCompleted, onToggleCompletion]);
 
   return (
     <>
@@ -49,42 +55,80 @@ const NoteCard = memo(({ item, index, onDelete, onUpdateCategory, theme, isLands
           { 
             backgroundColor: `${item.color}${theme.isDarkMode ? '20' : '10'}`,
             borderColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-            width: isLandscape ? '48%' : '100%', // Adjust width based on orientation
+            width: isLandscape ? '48%' : '100%',
           }
         ]}
         entering={FadeInUp.delay(index * 100)}
         exiting={FadeOutDown}
       >
-        <View style={styles.noteHeader}>
-          <View style={styles.titleContainer}>
-            <View style={[styles.categoryDot, { backgroundColor: item.color }]} />
-            <Text style={[styles.noteTitle, { color: theme.textColor }]} numberOfLines={1}>{item.title}</Text>
+        {/* Wrap the content in a regular View with opacity */}
+        <View style={{ opacity: item.isCompleted ? 0.6 : 1.2 }}>
+          <View style={styles.noteHeader}>
+            <View style={styles.titleContainer}>
+              <Pressable 
+                style={styles.checkboxContainer}
+                onPress={handleToggleCompletion}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <View style={[
+                  styles.checkbox,
+                  { borderColor: item.color, backgroundColor: item.isCompleted ? item.color : 'transparent' }
+                ]}>
+                  {item.isCompleted && (
+                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  )}
+                </View>
+              </Pressable>
+              <Text 
+                style={[
+                  styles.noteTitle, 
+                  { 
+                    color: theme.textColor,
+                    textDecorationLine: item.isCompleted ? 'line-through' : 'none',
+                  }
+                ]} 
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+            </View>
+            <Text 
+              style={[
+                styles.noteCategory, 
+                { 
+                  backgroundColor: `${item.color}${theme.isDarkMode ? '30' : '20'}`, 
+                  color: item.color 
+                }
+              ]} 
+              onPress={handleCategorySelect}
+            >
+              {item.category}
+            </Text>
           </View>
           <Text 
             style={[
-              styles.noteCategory, 
+              styles.noteContent, 
               { 
-                backgroundColor: `${item.color}${theme.isDarkMode ? '30' : '20'}`, 
-                color: item.color 
+                color: theme.subTextColor,
+                textDecorationLine: item.isCompleted ? 'line-through' : 'none',
               }
             ]} 
-            onPress={handleCategorySelect}
+            numberOfLines={2}
           >
-            {item.category}
+            {item.content}
           </Text>
-        </View>
-        <Text style={[styles.noteContent, { color: theme.subTextColor }]} numberOfLines={2}>{item.content}</Text>
-        <View style={styles.noteFooter}>
-          <Text style={[styles.noteDate, { color: theme.mutedTextColor }]}>
-            {new Date(item.updatedAt).toLocaleDateString()}
-          </Text>
-          <View style={styles.actionIcons}>
-            <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
-              <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
-            </Pressable>
-            <Pressable style={styles.iconButton} onPress={() => setAlertVisible(true)}>
-              <Ionicons name="trash-outline" size={18} color="#EF4444" />
-            </Pressable>
+          <View style={styles.noteFooter}>
+            <Text style={[styles.noteDate, { color: theme.mutedTextColor }]}>
+              {new Date(item.updatedAt).toLocaleDateString()}
+            </Text>
+            <View style={styles.actionIcons}>
+              <Pressable style={styles.iconButton} onPress={handleCategorySelect}>
+                <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
+              </Pressable>
+              <Pressable style={styles.iconButton} onPress={() => setAlertVisible(true)}>
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+              </Pressable>
+            </View>
           </View>
         </View>
       </AnimatedPressable>
@@ -232,9 +276,10 @@ export default function NotesScreen() {
         content: note.content,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        category: note.category || 'Notes', // Add a default category if needed
-        color: note.color || '#4F46E5', // Add a default color if needed
-        isSynced: note.isSynced
+        category: note.category || 'Notes',
+        color: note.color || '#4F46E5',
+        isSynced: note.isSynced,
+        isCompleted: note.isCompleted || false // Add this line
       }));
       
       console.log('Loaded notes from Realm:', plainNotes.length);
@@ -337,6 +382,28 @@ export default function NotesScreen() {
     }
   }, [realm, loadNotes]);
 
+  const handleToggleCompletion = useCallback((noteId, isCompleted) => {
+    if (!noteService.current) return;
+    
+    console.log('Toggling completion for note:', noteId, isCompleted);
+    
+    try {
+      // Use the toggleCompletion method from NoteService
+      const success = noteService.current.toggleCompletion(noteId, isCompleted);
+      
+      if (success) {
+        console.log('Note completion status updated successfully');
+        // Refresh the notes list
+        loadNotes();
+      } else {
+        console.log('Failed to update note completion status, ID not found');
+      }
+    } catch (error) {
+      console.error('Error updating note completion status:', error);
+      Alert.alert('Error', 'Failed to update completion status');
+    }
+  }, [loadNotes]);
+
   // Set up Realm change listener
   useEffect(() => {
     if (!realm || !user) return;
@@ -366,10 +433,11 @@ export default function NotesScreen() {
       index={index} 
       onDelete={handleDeleteNote}
       onUpdateCategory={handleUpdateCategory}
+      onToggleCompletion={handleToggleCompletion}
       theme={theme}
       isLandscape={isLandscape}
     />
-  ), [handleDeleteNote, handleUpdateCategory, theme, isLandscape]);
+  ), [handleDeleteNote, handleUpdateCategory, handleToggleCompletion, theme, isLandscape]);
 
   const keyExtractor = useCallback((item) => item.id, []);
 
@@ -554,5 +622,16 @@ const styles = StyleSheet.create({
     color: '#fff', 
     fontSize: 14, 
     fontWeight: '600' 
+  },
+  checkboxContainer: {
+    marginRight: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

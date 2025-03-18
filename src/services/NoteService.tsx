@@ -41,11 +41,31 @@ export default class NoteService {
   getNoteById(noteId) {
     return this.realm.objectForPrimaryKey('Note', noteId);
   }
+  
+  /**
+   * Toggle completion status for a note
+   */
+  toggleCompletion(noteId, isCompleted) {
+    const note = this.getNoteById(noteId);
+    
+    if (!note) {
+      console.error(`Note with ID ${noteId} not found`);
+      return false;
+    }
+    
+    this.realm.write(() => {
+      note.isCompleted = isCompleted;
+      note.updatedAt = new Date();
+      note.isSynced = false; // Mark for sync
+    });
+    
+    return true;
+  }
 
   /**
    * Create a new note
    */
-  createNote(title, content, category = 'Notes', color = '#4F46E5') {
+  createNote(title, content, category = 'Notes', color = '#4F46E5', isCompleted = false) {
     let noteId;
     
     try {
@@ -69,6 +89,7 @@ export default class NoteService {
         color: color,
         isDeleted: false,
         isSynced: false, // Mark as not synced initially
+        isCompleted: isCompleted
       });
     });
     
@@ -79,7 +100,7 @@ export default class NoteService {
    * Create a note with a predefined ID
    * If the ID is not in UUID format, it will be converted to UUID format first
    */
-  createNoteWithId(noteId, title, content, category = 'Notes', color = '#4F46E5', createdAt = new Date()) {
+  createNoteWithId(noteId, title, content, category = 'Notes', color = '#4F46E5', createdAt = new Date(), isCompleted = false) {
     // Check if noteId is a valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(noteId)) {
@@ -128,6 +149,7 @@ export default class NoteService {
         color: color,
         isDeleted: false,
         isSynced: false,
+        isCompleted: isCompleted
       });
     });
     
@@ -151,6 +173,7 @@ export default class NoteService {
       if (updates.content !== undefined) note.content = updates.content;
       if (updates.category !== undefined) note.category = updates.category;
       if (updates.color !== undefined) note.color = updates.color;
+      if (updates.isCompleted !== undefined) note.isCompleted = updates.isCompleted;
       
       // Always update these fields
       note.updatedAt = new Date();
@@ -317,6 +340,24 @@ export default class NoteService {
       .sorted('updatedAt', true);
   }
 
+  /**
+   * Get completed notes
+   */
+  getCompletedNotes() {
+    return this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && isCompleted == true', this.userId)
+      .sorted('updatedAt', true);
+  }
+
+  /**
+   * Get incomplete notes (tasks not yet completed)
+   */
+  getIncompleteNotes() {
+    return this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && isCompleted == false', this.userId)
+      .sorted('updatedAt', true);
+  }
+
   purgeHardDeletedNotes() {
     const hardDeletedNotes = this.realm.objects('Note')
       .filtered('userId == $0 && hardDeleted == true && isSynced == true', this.userId);
@@ -328,5 +369,4 @@ export default class NoteService {
       console.log(`Purged ${hardDeletedNotes.length} synced hard-deleted notes`);
     }
   }
-  
 }

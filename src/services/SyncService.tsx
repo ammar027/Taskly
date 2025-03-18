@@ -111,7 +111,8 @@ export default function SyncService({ userId }) {
           category: note.category,
           color: note.color,
           isDeleted: note.isDeleted,
-          hardDeleted: note.hardDeleted
+          hardDeleted: note.hardDeleted,
+          isCompleted: note.isCompleted // Include completion status
         }));
         
         const batchPromises = batchNotesData.map(async (noteData) => {
@@ -176,6 +177,7 @@ export default function SyncService({ userId }) {
             category: noteData.category,
             color: noteData.color,
             is_deleted: noteData.isDeleted,
+            is_completed: noteData.isCompleted, // Convert isCompleted to is_completed for Supabase
           };
 
           try {
@@ -282,6 +284,7 @@ export default function SyncService({ userId }) {
                   category: remoteNote.category || 'Notes',
                   color: remoteNote.color || '#4F46E5',
                   isDeleted: remoteNote.is_deleted,
+                  isCompleted: remoteNote.is_completed || false, // Handle the completion status
                   isSynced: true,
                 });
                 console.log(`Created new local note from remote: ${remoteNote.id}`);
@@ -296,6 +299,7 @@ export default function SyncService({ userId }) {
                   localNote.category = remoteNote.category || 'Notes';
                   localNote.color = remoteNote.color || '#4F46E5';
                   localNote.isDeleted = remoteNote.is_deleted;
+                  localNote.isCompleted = remoteNote.is_completed || false; // Update completion status
                   localNote.isSynced = true;
                   console.log(`Updated local note from remote: ${remoteNote.id}`);
                 } else if (localUpdatedAt > remoteUpdatedAt && !localNote.isSynced) {

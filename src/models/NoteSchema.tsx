@@ -12,6 +12,7 @@ export const NoteSchema = {
     color: { type: 'string', default: '#4F46E5' },
     isDeleted: { type: 'bool', default: false },
     isSynced: { type: 'bool', default: false },
-    hardDeleted: { type: 'bool', default: false }, // Add this line
+    hardDeleted: { type: 'bool', default: false },
+    isCompleted: { type: 'bool', default: false }, 
   },
 };

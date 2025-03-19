@@ -266,7 +266,7 @@ const AuthScreen = () => {
               <Image
                 style={[
                   styles.image,
-                  { height: keyboardVisible ? 40 : 60, width: keyboardVisible ? 240 : 330, top: keyboardVisible ? 0 : 45 }
+                  { height: keyboardVisible ? 40 : 60, width: keyboardVisible ? 240 : 330, top: keyboardVisible ? 0 : 15 }
                 ]}
                 source={require("@/icons/adaptive-icon.png")}
                 contentFit="cover"
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 30,
   },

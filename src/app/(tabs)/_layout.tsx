@@ -70,7 +70,7 @@ export default function TabLayout() {
   const tabConfig = [
     {
       name: "index",
-      title: "Notes",
+      title: "Tasks",
       icon: "document-text-outline",
     },
     {

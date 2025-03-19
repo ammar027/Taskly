@@ -306,7 +306,7 @@ export default function NotesScreen() {
         content: note.content,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        category: note.category || "Notes",
+        category: note.category || "Tasks",
         color: note.color || "#4F46E5",
         isSynced: note.isSynced,
         isCompleted: note.isCompleted || false, // Add this line

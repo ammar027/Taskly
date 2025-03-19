@@ -1,477 +1,316 @@
-// Add these imports at the top of your file
-import { Alert } from 'react-native';
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const NewTask = () => {
-  // Keep your existing state variables
-  const { colors } = usePaperTheme()
-  const { isDarkMode } = useTheme()
-  const router = useRouter()
-  const realm = useRealm()
-  const { user } = useAuth() 
+const NoteCard = memo(({item, index, onDelete, onUpdateCategory, onToggleCompletion, theme, isLandscape}) => {
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
   
-  const userId = user?.id || user?._id || user?.userId || (typeof user === 'string' ? user : 'anonymous')
-  const noteService = new NoteService(realm, userId)
+  // Check if the due date is overdue
+  const isOverdue = useMemo(() => {
+    if (!item.dueDate) return false;
+    return new Date(item.dueDate) < new Date();
+  }, [item.dueDate]);
 
-  // Keep your existing state declarations
-  const [recognizing, setRecognizing] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [transcript, setTranscript] = useState("")
-  
-  // Add new state for enhanced speech recognition
-  const [currentField, setCurrentField] = useState("title") // Default to title
-  const [captureMode, setCaptureMode] = useState(true) // Start in capture mode for title
-  const [fieldContent, setFieldContent] = useState({})
+  const handlePress = useCallback(() => {
+    console.log('Navigating to note with ID:', item.id);
+    router.push({
+      pathname: '/record/[id]',
+      params: {id: item.id}
+    });
+  }, [item.id]);
 
-  // Enhanced task data structure
-  const [taskData, setTaskData] = useState({
-    title: "",
-    content: "", // This will be our description
-    dueDate: "",
-    category: "",
-    priority: params.priority || "",
-    created: null,
-  })
+  const handleCategorySelect = useCallback(() => {
+    setCategoryModalVisible(true);
+  }, []);
 
-  // Define keywords to recognize different fields
-  const keywords = {
-    TITLE: ['title', 'task title', 'the title', 'title is', 'name', 'task name', 'create a task'],
-    DESCRIPTION: ['description', 'details', 'content', 'describe', 'task details', 'the description'],
-    DUE_DATE: ['due date', 'deadline', 'due', 'due by', 'when is it due', 'complete by', 'finish by', 'date'],
-    CATEGORY: ['category', 'type', 'tag', 'label', 'group', 'the category', 'category is'],
-    PRIORITY: ['priority', 'importance', 'urgent', 'high priority', 'low priority', 'medium priority'],
-  }
-
-  // Valid categories
-  const validCategories = ['Notes', 'Tasks', 'Projects', 'Personal', 'Meetings']
-  
-  // Valid priorities
-  const validPriorities = ['high', 'medium', 'low']
-
-  // Keep your existing useEffect blocks and animations
-
-  // Updated speech recognition event handlers
-  useSpeechRecognitionEvent("start", () => {
-    setRecognizing(true)
-    setRecordingStartTime(Date.now())
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)
-    setCurrentAction("Listening... Say title, description, due date, or category")
-  })
-
-  useSpeechRecognitionEvent("end", () => {
-    setRecognizing(false)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    setCurrentAction("Processing your input...")
-    
-    // If we're in the first step and have a title, move to next step
-    if (currentStep === 0 && taskData.title) {
-      // Wait a bit before moving to next step to give user time to read
-      setTimeout(() => {
-        setCurrentStep(1)
-        setCurrentAction("Task created! You can now add more details.")
-      }, 1500)
-    }
-  })
-
-  useSpeechRecognitionEvent("result", (event) => {
-    const newTranscript = event.results[0]?.transcript || ""
-    setTranscript(newTranscript)
-
-    // Process the transcript
-    if (newTranscript.trim()) {
-      processSpeechInput(newTranscript, event.isFinal)
-    }
-
-    // Reset speech timeout
-    if (speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current)
-      speechTimeoutRef.current = setTimeout(() => {
-        if (recognizing) handleStop()
-      }, SPEECH_TIMEOUT)
-    }
-  })
-
-  // Helper functions for speech processing
-  const processSpeechInput = (text, isFinal) => {
-    const lowerText = text.toLowerCase()
-    
-    // Check for "done" or "save task" commands
-    if (isFinal && (
-      lowerText.includes('done') || 
-      lowerText.includes('save task') || 
-      lowerText.includes('finish task') || 
-      lowerText.includes('that\'s it')
-    )) {
-      handleStop()
-      setTimeout(() => finishTask(), 500)
-      return
-    }
-    
-    // Check for field keywords
-    let fieldDetected = false
-    for (const [field, fieldKeywords] of Object.entries(keywords)) {
-      if (containsAny(lowerText, fieldKeywords)) {
-        const fieldName = field.toLowerCase()
-        const content = extractContentAfterKeyword(text, lowerText, fieldKeywords)
-        
-        setCurrentField(fieldName)
-        setCurrentAction(`Processing ${fieldName.replace('_', ' ')}...`)
-        
-        if (content && content.trim().length > 0) {
-          updateTaskField(fieldName, content)
-          setCurrentAction(`${fieldName.replace('_', ' ')} captured: "${content}"`)
-        }
-        fieldDetected = true
-        break
+  const handleUpdateCategory = useCallback(
+    category => {
+      if (onUpdateCategory) {
+        onUpdateCategory(item.id, category);
       }
+    },
+    [item.id, onUpdateCategory]
+  );
+
+  const handleToggleCompletion = useCallback(() => {
+    if (onToggleCompletion) {
+      onToggleCompletion(item.id, !item.isCompleted);
     }
-    
-    // If no keyword found, assume content is for current field
-    if (!fieldDetected && text.trim()) {
-      updateTaskField(currentField, text)
-      setCurrentAction(`${currentField.replace('_', ' ')} updated: "${text}"`)
-    }
-  }
+  }, [item.id, item.isCompleted, onToggleCompletion]);
 
-  // Helper function to update task data based on field
-  const updateTaskField = (field, content) => {
-    switch(field) {
-      case "title":
-        setTaskData(prev => ({ ...prev, title: content }))
-        break
-      case "description":
-        setTaskData(prev => ({ ...prev, content: content }))
-        break
-      case "due_date":
-        // Process date strings like "March 12" or "tomorrow"
-        const processedDate = processDateString(content)
-        setTaskData(prev => ({ ...prev, dueDate: processedDate }))
-        break
-      case "category":
-        // Match against valid categories
-        const matchedCategory = findClosestCategory(content, validCategories)
-        setTaskData(prev => ({ ...prev, category: matchedCategory || "Tasks" }))
-        break
-      case "priority":
-        // Match against valid priorities
-        const matchedPriority = findClosestPriority(content, validPriorities)
-        setTaskData(prev => ({ ...prev, priority: matchedPriority || "medium" }))
-        break
-    }
-  }
+  // Get priority color with alpha
+  const getPriorityColor = (priority, alpha = 1) => {
+    const colors = {
+      high: `rgba(239, 68, 68, ${alpha})`,
+      medium: `rgba(245, 158, 11, ${alpha})`,
+      low: `rgba(16, 185, 129, ${alpha})`
+    };
+    return colors[priority] || colors.medium;
+  };
 
-  // Helper function to process date strings
-  const processDateString = (dateText) => {
-    const lowerDateText = dateText.toLowerCase().trim()
-    
-    // Handle relative dates
-    if (lowerDateText.includes('today')) {
-      return new Date().toISOString().split('T')[0]
-    }
-    if (lowerDateText.includes('tomorrow')) {
-      const tomorrow = new Date()
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      return tomorrow.toISOString().split('T')[0]
-    }
-    if (lowerDateText.includes('next week')) {
-      const nextWeek = new Date()
-      nextWeek.setDate(nextWeek.getDate() + 7)
-      return nextWeek.toISOString().split('T')[0]
-    }
-    
-    // Try to parse the date
-    try {
-      const parsedDate = new Date(dateText)
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toISOString().split('T')[0]
-      }
-    } catch (e) {
-      console.log("Error parsing date:", e)
-    }
-    
-    // Return the original text if parsing fails
-    return dateText
-  }
-
-  // Helper function to find the closest matching category
-  const findClosestCategory = (input, categories) => {
-    const lowerInput = input.toLowerCase().trim()
-    
-    // Direct match
-    for (const category of categories) {
-      if (lowerInput.includes(category.toLowerCase())) {
-        return category
-      }
-    }
-    
-    // Return the first category as default
-    return categories[0]
-  }
-
-  // Helper function to find the closest matching priority
-  const findClosestPriority = (input, priorities) => {
-    const lowerInput = input.toLowerCase().trim()
-    
-    // Direct match
-    for (const priority of priorities) {
-      if (lowerInput.includes(priority)) {
-        return priority
-      }
-    }
-    
-    // Handle common expressions
-    if (lowerInput.includes('urgent') || lowerInput.includes('important')) {
-      return 'high'
-    }
-    if (lowerInput.includes('not urgent') || lowerInput.includes('can wait')) {
-      return 'low'
-    }
-    
-    // Default to medium
-    return 'medium'
-  }
-
-  // Helper function to check if text contains any of the keywords
-  const containsAny = (text, keywords) => {
-    return keywords.some(keyword => {
-      const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'i')
-      return regex.test(text)
-    })
-  }
-
-  // Helper function to extract content after a keyword
-  const extractContentAfterKeyword = (text, lowerText, keywords) => {
-    for (const keyword of keywords) {
-      if (lowerText.includes(keyword.toLowerCase())) {
-        const keywordIndex = lowerText.indexOf(keyword.toLowerCase())
-        const content = text.substring(keywordIndex + keyword.length).trim()
-        
-        // Filter out common filler words
-        if (content && !['is', 'the', 'a', 'an', 'this', 'that'].includes(content.toLowerCase())) {
-          return content
-        }
-      }
-    }
-    return null
-  }
-
-  // Modified start speech recognition function
-  const handleStart = async () => {
-    const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
-    if (!result.granted) {
-      console.warn("Permissions not granted", result)
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      setCurrentAction("Microphone permission denied")
-      return
-    }
-
-    setCurrentAction("I'm listening... Say title, description, due date, or category")
-    ExpoSpeechRecognitionModule.start({
-      lang: "en-US",
-      interimResults: true,
-      maxAlternatives: 1,
-      continuous: true,
-      requiresOnDeviceRecognition: false,
-      addsPunctuation: true,
-      // Improve recognition accuracy for task-related terminology
-      contextualStrings: [
-        "title", "description", "due date", "category", "priority",
-        "task", "project", "deadline", "work", "personal",
-        "high", "medium", "low", "notes", "meetings"
-      ]
-    })
-  }
-
-  // Modify finishTask function to include all captured data
-  const finishTask = () => {
-    setCurrentStep(1)
-    setTranscript("")
-    setCurrentAction("Task created successfully")
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-
-    if (animationRef.current) setTimeout(() => animationRef.current.play(), 100)
-
-    setTaskData((prev) => ({ ...prev, created: new Date().toISOString() }))
-    setSaveCountdown(AUTO_SAVE_COUNTDOWN)
-    setAutoSaving(true)
-  }
-
-  // Modify saveTaskAndNavigate function to include all captured data
-  const saveTaskAndNavigate = () => {
-    try {
-      // Create the task data
-      const now = new Date()
-      
-      // Define the priority color mapping
-      const priorityColorMap = {
-        high: "#DB2777",
-        medium: "#4F46E5",
-        low: "#059669"
-      }
-      
-      // Use the captured category or default to "Tasks"
-      const category = taskData.category || (taskData.priority === "high" ? "Important" : "Tasks")
-      
-      // Define the color based on priority
-      const color = priorityColorMap[taskData.priority || "low"]
-      
-      // Create the note in Realm using the NoteService
-      const noteId = noteService.createNote(
-        taskData.title,        // title
-        taskData.content || "", // content/description
-        category,              // category
-        color,                 // color
-        false                  // isCompleted
-      )
-      
-      // Create a simple object to pass via navigation params
-      const noteData = {
-        id: noteId,
-        title: taskData.title,
-        content: taskData.content || "",
-        category: category,
-        color: color,
-        date: taskData.dueDate || now.toISOString().split("T")[0],
-        dueDate: taskData.dueDate || null
-      }
-  
-      // Handle navigation based on the params
-      if (params.returnToTabs === "true") {
-        router.replace({
-          pathname: "/(tabs)",
-          params: { newNote: JSON.stringify(noteData), timestamp: Date.now() },
-        })
-      } else {
-        setTimeout(() => RNExitApp.exitApp(), 1000)
-      }
-  
-      setCurrentAction("Task saved successfully")
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    } catch (error) {
-      console.error("Error preparing task data:", error)
-      setCurrentAction("Error saving task")
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-    }
-  }
-
-  // Add a function to show help/tutorial
-  const showTutorial = () => {
-    Alert.alert(
-      "Voice Task Creation",
-      "You can use these voice commands:\n\n" +
-      "• \"Title: Buy groceries\"\n" +
-      "• \"Description: Milk, eggs, bread\"\n" +
-      "• \"Due date: Tomorrow\"\n" +
-      "• \"Category: Shopping\"\n" +
-      "• \"Priority: High\"\n\n" +
-      "Say \"Done\" or \"Save task\" when finished",
-      [{ text: "Got it!" }]
-    )
-  }
-
-  // Add a help button to the UI
-  const HelpButton = () => (
-    <TouchableOpacity 
-      onPress={showTutorial}
-      style={{
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: colors.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10
-      }}
-    >
-      <Text style={{ color: 'white', fontWeight: 'bold' }}>?</Text>
-    </TouchableOpacity>
-  )
-
-  // Modify the TaskSummary component to display all captured data
-  const TaskSummary = ({ theme, colors, taskData, autoSaving, saveCountdown }) => (
-    <View style={{ padding: 16 }}>
-      <Text style={{ fontSize: 22, fontWeight: "bold", color: theme.text, marginBottom: 16 }}>
-        {taskData.title}
-      </Text>
-      
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{ fontSize: 16, fontWeight: "600", color: theme.secondaryText, marginBottom: 4 }}>
-          Description
-        </Text>
-        <Text style={{ fontSize: 16, color: theme.text }}>
-          {taskData.content || "No description provided"}
-        </Text>
-      </View>
-      
-      {taskData.dueDate && (
-        <View style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 16, fontWeight: "600", color: theme.secondaryText, marginBottom: 4 }}>
-            Due Date
-          </Text>
-          <Text style={{ fontSize: 16, color: theme.text }}>
-            {taskData.dueDate}
-          </Text>
-        </View>
-      )}
-      
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{ fontSize: 16, fontWeight: "600", color: theme.secondaryText, marginBottom: 4 }}>
-          Category
-        </Text>
-        <Text style={{ fontSize: 16, color: theme.text }}>
-          {taskData.category || (taskData.priority === "high" ? "Important" : "Tasks")}
-        </Text>
-      </View>
-      
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{ fontSize: 16, fontWeight: "600", color: theme.secondaryText, marginBottom: 4 }}>
-          Priority
-        </Text>
-        <Text style={{ fontSize: 16, color: theme.text }}>
-          {taskData.priority ? taskData.priority.charAt(0).toUpperCase() + taskData.priority.slice(1) : "Medium"}
-        </Text>
-      </View>
-      
-      {autoSaving && (
-        <View style={{ 
-          marginTop: 16,
-          padding: 8,
-          borderRadius: 8,
-          backgroundColor: theme.autoSaveBg,
-          borderWidth: 1,
-          borderColor: theme.autoSaveBorder
-        }}>
-          <Text style={{ fontSize: 14, color: theme.text, textAlign: "center" }}>
-            Auto-saving in {saveCountdown}...
-          </Text>
-        </View>
-      )}
-    </View>
-  )
-
-  // Keep the rest of your code, including the return statement
-  // Just add the HelpButton component to your UI
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar style={isDarkMode ? "light" : "dark"} />
+    <>
+      <AnimatedPressable
+        onPress={handlePress}
+        style={[
+          styles.noteCard,
+          {
+            backgroundColor: theme.isDarkMode ? '#1E1E1E' : '#FFFFFF',
+            borderColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            width: isLandscape ? '48%' : '100%',
+            borderLeftWidth: 4,
+            borderLeftColor: item.isCompleted ? '#9CA3AF' : item.color
+          }
+        ]}
+        entering={FadeInUp.delay(index * 100)}
+        exiting={FadeOutDown}
+      >
+        {/* Card content with opacity based on completion status */}
+        <View style={{opacity: item.isCompleted ? 0.7 : 1}}>
+          {/* Priority indicator */}
+          {item.priority && (
+            <View style={[styles.priorityIndicator, {backgroundColor: getPriorityColor(item.priority, 0.15)}]}>
+              <Text style={[styles.priorityText, {color: getPriorityColor(item.priority)}]}>
+                {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
+              </Text>
+            </View>
+          )}
 
-      <HelpButton />
+          <View style={styles.noteHeader}>
+            <View style={styles.titleContainer}>
+              <Pressable 
+                style={styles.checkboxContainer} 
+                onPress={handleToggleCompletion} 
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      borderColor: item.isCompleted ? '#9CA3AF' : item.color,
+                      backgroundColor: item.isCompleted ? '#9CA3AF' : 'transparent'
+                    }
+                  ]}
+                >
+                  {item.isCompleted && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+              </Pressable>
+              <Text
+                style={[
+                  styles.noteTitle,
+                  {
+                    color: theme.textColor,
+                    textDecorationLine: item.isCompleted ? 'line-through' : 'none'
+                  }
+                ]}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+            </View>
+            <Pressable onPress={handleCategorySelect}>
+              <Text
+                style={[
+                  styles.noteCategory,
+                  {
+                    backgroundColor: `${item.color}${theme.isDarkMode ? '30' : '15'}`,
+                    color: item.color
+                  }
+                ]}
+              >
+                {item.category}
+              </Text>
+            </Pressable>
+          </View>
 
-      <Header
-        router={router}
-        params={params}
-        isDarkMode={isDarkMode}
-        theme={theme}
-        recognizing={recognizing}
-        recordingTime={recordingTime}
-        getStepLabel={getStepLabel}
-        colors={colors}
+          <Text
+            style={[
+              styles.noteContent,
+              {
+                color: theme.subTextColor,
+                textDecorationLine: item.isCompleted ? 'line-through' : 'none'
+              }
+            ]}
+            numberOfLines={2}
+          >
+            {item.content}
+          </Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.noteFooter}>
+            <View style={styles.dateContainer}>
+              <Ionicons name="calendar-outline" size={14} color={theme.mutedTextColor} />
+              <Text style={[styles.noteDate, {color: theme.mutedTextColor}]}>
+                {new Date(item.updatedAt).toLocaleDateString()}
+              </Text>
+            </View>
+            
+            {item.dueDate && (
+              <View style={[styles.dueDate, isOverdue && !item.isCompleted && styles.overdueDate]}>
+                <Ionicons 
+                  name={isOverdue && !item.isCompleted ? "alarm" : "time-outline"} 
+                  size={14} 
+                  color={isOverdue && !item.isCompleted ? "#ef4444" : theme.mutedTextColor} 
+                />
+                <Text 
+                  style={[
+                    styles.dueDateText, 
+                    {color: isOverdue && !item.isCompleted ? "#ef4444" : theme.mutedTextColor}
+                  ]}
+                >
+                  Due: {new Date(item.dueDate).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.actionIcons}>
+              <Pressable 
+                style={styles.iconButton} 
+                onPress={handleCategorySelect}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+              >
+                <Ionicons name="folder-outline" size={18} color={theme.isDarkMode ? '#9ca3af' : '#6B7280'} />
+              </Pressable>
+              <Pressable 
+                style={styles.iconButton} 
+                onPress={() => setAlertVisible(true)}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+              >
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </AnimatedPressable>
+
+      <CategorySelectionModal 
+        visible={categoryModalVisible} 
+        onClose={() => setCategoryModalVisible(false)} 
+        onSelectCategory={handleUpdateCategory} 
+        currentCategory={item.category} 
+        theme={theme} 
       />
+      <CustomAlert
+        visible={alertVisible}
+        title="Delete Note"
+        message="Are you sure you want to delete this note? This action cannot be undone."
+        onCancel={() => setAlertVisible(false)}
+        onDelete={() => {
+          onDelete(item.id);
+          setAlertVisible(false);
+        }}
+        theme={theme}
+      />
+    </>
+  );
+});
 
-      {/* The rest of your UI remains the same */}
-      {/* ... */}
-    </SafeAreaView>
-  )
-}
+const styles = StyleSheet.create({
+  noteCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 0,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  noteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  noteTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  noteCategory: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  noteContent: {
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  noteFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    marginVertical: 10,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  noteDate: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  dueDate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  overdueDate: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  dueDateText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  priorityIndicator: {
+    position: 'absolute',
+    top: -8,
+    right: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  priorityText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  actionIcons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginLeft: 'auto',
+  },
+  iconButton: {
+    padding: 4,
+  },
+  checkboxContainer: {
+    marginRight: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

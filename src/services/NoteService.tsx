@@ -21,6 +21,16 @@ function generateFallbackUuid() {
   return uuid;
 }
 
+// Safe UUID generator that handles the crypto.getRandomValues() error
+function safeUuidGenerator() {
+  try {
+    return uuidv4();
+  } catch (error) {
+    console.warn('UUID library failed, using fallback implementation:', error.message);
+    return generateFallbackUuid();
+  }
+}
+
 export default class NoteService {
   constructor(realm, userId) {
     this.realm = realm;
@@ -65,34 +75,35 @@ export default class NoteService {
   /**
    * Create a new note
    */
-  createNote(title, content, category = 'Notes', color = '#4F46E5', isCompleted = false) {
-    let noteId;
-    
+  createNote(title, content, category, color, isCompleted = false, dueDate = null, priority = 'medium') {
+    // Using the safe UUID generator to avoid errors
+    const noteId = safeUuidGenerator();
+    console.log("Generated UUID:", noteId);
+       
     try {
-      // Try to use UUID v4
-      noteId = uuidv4();
-    } catch (error) {
-      // Fallback to UUID-format string if native UUID fails
-      console.log('UUID generation failed, using fallback UUID method');
-      noteId = generateFallbackUuid();
-    }
-    
-    this.realm.write(() => {
-      this.realm.create('Note', {
-        id: noteId,
-        title: title || 'Untitled',
-        content: content || '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        userId: this.userId,
-        category: category,
-        color: color,
-        isDeleted: false,
-        isSynced: false, // Mark as not synced initially
-        isCompleted: isCompleted
+      this.realm.write(() => {
+        this.realm.create('Note', {
+          id: noteId,
+          title: title || 'Untitled',
+          content: content || '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          userId: this.userId,
+          category: category || 'Tasks',
+          color: color || '#059669',
+          isDeleted: false,
+          isSynced: false,
+          isCompleted: isCompleted,
+          dueDate: dueDate,
+          priority: priority,
+        });
       });
-    });
-    
+      console.log("Note created successfully with ID:", noteId);
+    } catch (error) {
+      console.error('Error creating note in Realm:', error);
+      throw error; // Re-throw to allow proper error handling
+    }
+       
     return noteId;
   }
 
@@ -174,6 +185,8 @@ export default class NoteService {
       if (updates.category !== undefined) note.category = updates.category;
       if (updates.color !== undefined) note.color = updates.color;
       if (updates.isCompleted !== undefined) note.isCompleted = updates.isCompleted;
+      if (updates.dueDate !== undefined) note.dueDate = updates.dueDate;
+      if (updates.priority !== undefined) note.priority = updates.priority;
       
       // Always update these fields
       note.updatedAt = new Date();
@@ -358,6 +371,33 @@ export default class NoteService {
       .sorted('updatedAt', true);
   }
 
+  /**
+   * Get notes by priority
+   */
+  getNotesByPriority(priority) {
+    return this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && priority == $1', this.userId, priority)
+      .sorted('updatedAt', true);
+  }
+
+  /**
+   * Get notes with due dates approaching
+   * @param {number} daysThreshold - Number of days to consider "approaching"
+   */
+  getApproachingDueDates(daysThreshold = 3) {
+    const now = new Date();
+    const thresholdDate = new Date(now);
+    thresholdDate.setDate(now.getDate() + daysThreshold);
+    
+    return this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && isCompleted == false && dueDate != null && dueDate <= $1', 
+                this.userId, thresholdDate)
+      .sorted('dueDate');
+  }
+
+  /**
+   * Permanently remove hard-deleted notes that have been synced
+   */
   purgeHardDeletedNotes() {
     const hardDeletedNotes = this.realm.objects('Note')
       .filtered('userId == $0 && hardDeleted == true && isSynced == true', this.userId);

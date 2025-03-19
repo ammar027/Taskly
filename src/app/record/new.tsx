@@ -1,157 +1,180 @@
-import React, { useState, useEffect, useRef } from "react"
-import {
-  View,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Platform,
-  Pressable,
-  Animated,
-  BackHandler,
-} from "react-native"
-import { ExpoSpeechRecognitionModule } from "expo-speech-recognition"
-import { useSpeechRecognitionEvent } from "expo-speech-recognition"
-import { Text, ActivityIndicator, useTheme as usePaperTheme, Surface } from "react-native-paper"
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
-import * as Haptics from "expo-haptics"
-import { StatusBar } from "expo-status-bar"
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useTheme } from "@/components/ThemeContext"
-import RNExitApp from "react-native-exit-app"
-import { NavigationBarThemeHandler } from "@/components/NavigationBarThemeHandeler"
-import { SafeAreaView } from "react-native-safe-area-context"
-import NoteService from "@/services/NoteService"
-import { useRealm } from "@/components/RealmContext"
-import { useAuth } from "@/components/AuthContext"
-import { Header } from "@/components/Record/Header"
-import { VoiceWaves } from "@/components/Record/VoiceWaves"
-import { EmptyState } from "@/components/Record/EmptyState"
-import { TranscriptView } from "@/components/Record/TranscriptView"
-import { TaskSummary } from "@/components/Record/TaskSummary"
-import { VoiceControls } from "@/components/Record/VoiceControls"
-import { FinalButtons } from "@/components/Record/FinalButtons"
-import { StepIndicator } from "@/components/Record/StepIndicator"
+import React, {useState, useEffect, useRef, useReducer} from 'react'
+import {View, ScrollView, StyleSheet, TouchableOpacity, Dimensions, Platform, Pressable, Animated, BackHandler, Alert} from 'react-native'
+import {ExpoSpeechRecognitionModule} from 'expo-speech-recognition'
+import {useSpeechRecognitionEvent} from 'expo-speech-recognition'
+import {Text, ActivityIndicator, useTheme as usePaperTheme, Surface} from 'react-native-paper'
+import {Feather, Ionicons, MaterialCommunityIcons} from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import {StatusBar} from 'expo-status-bar'
+import Toast from 'react-native-toast-message'
+import {useFocusEffect, useLocalSearchParams, useRouter} from 'expo-router'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import {useTheme} from '@/components/ThemeContext'
+import RNExitApp from 'react-native-exit-app'
+import {NavigationBarThemeHandler} from '@/components/NavigationBarThemeHandeler'
+import {SafeAreaView} from 'react-native-safe-area-context'
+import NoteService from '@/services/NoteService'
+import {useRealm} from '@/components/RealmContext'
+import {useAuth} from '@/components/AuthContext'
 
-// Constants
-const { width } = Dimensions.get("window")
+const {width} = Dimensions.get('window')
 const SPEECH_TIMEOUT = 13000
-const AUTO_SAVE_COUNTDOWN = 3
-const AUTO_CONFIRM_TIMEOUT = 3000
+const AUTO_SAVE_COUNTDOWN = 2
+const AUTO_CONFIRM_TIMEOUT = 2000
 
 const NewTask = () => {
-  const { colors } = usePaperTheme()
-  const { isDarkMode } = useTheme()
+  const {colors} = usePaperTheme()
+  const {isDarkMode} = useTheme()
   const router = useRouter()
-  // Get Realm instance and user ID for NoteService
   const realm = useRealm()
-  const { user } = useAuth() 
-  
-  // Extract the user ID as a string from the user object
+  const {user} = useAuth()
   const userId = user?.id || user?._id || user?.userId || (typeof user === 'string' ? user : 'anonymous')
-  
-  // Initialize NoteService with the string user ID
   const noteService = new NoteService(realm, userId)
 
   // Handle hardware back button
   useFocusEffect(
     React.useCallback(() => {
       const onBackPress = () => {
-        router.replace({ pathname: "/(tabs)" })
+        router.replace({pathname: '/(tabs)'})
         return true
       }
-      BackHandler.addEventListener("hardwareBackPress", onBackPress)
-      return () => BackHandler.removeEventListener("hardwareBackPress", onBackPress)
-    }, [router]),
+      BackHandler.addEventListener('hardwareBackPress', onBackPress)
+      return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress)
+    }, [router])
   )
 
   const params = useLocalSearchParams()
 
-  // State declarations
-  const [recognizing, setRecognizing] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [taskData, setTaskData] = useState({
-    title: "",
-    priority: params.priority || "",
-    created: null,
+  // State consolidation with useReducer
+  const [state, dispatch] = useReducer((state, action) => {
+    switch (action.type) {
+      case 'SET_TASK_DATA':
+        return {...state, taskData: {...state.taskData, ...action.payload}}
+      case 'SET_RECOGNIZING':
+        return {...state, recognizing: action.payload}
+      case 'SET_TRANSCRIPT':
+        return {...state, transcript: action.payload}
+      case 'SET_CURRENT_ACTION':
+        return {...state, currentAction: action.payload}
+      case 'SET_CURRENT_FIELD':
+        return {...state, currentField: action.payload}
+      case 'SET_ACTIVE_FIELD_HIGHLIGHT':
+        return {...state, activeFieldHighlight: action.payload}
+      case 'SET_SHOW_VOICE_WAVES':
+        return {...state, showVoiceWaves: action.payload}
+      case 'SET_RECORDING_START_TIME':
+        return {...state, recordingStartTime: action.payload}
+      case 'SET_RECORDING_TIME':
+        return {...state, recordingTime: action.payload}
+      case 'SET_SAVE_COUNTDOWN':
+        return {...state, saveCountdown: action.payload}
+      case 'SET_AUTO_SAVING':
+        return {...state, autoSaving: action.payload}
+      case 'RESET_TASK':
+        return {
+          ...state,
+          taskData: {
+            title: '',
+            content: '',
+            dueDate: '',
+            category: '',
+            priority: params.priority || '',
+            created: null
+          },
+          transcript: ''
+        }
+      default:
+        return state
+    }
+  }, {
+    recognizing: false,
+    taskData: {
+      title: '',
+      content: '',
+      dueDate: '',
+      category: '',
+      priority: params.priority || '',
+      created: null
+    },
+    transcript: '',
+    saveCountdown: AUTO_SAVE_COUNTDOWN,
+    autoSaving: false,
+    currentAction: '',
+    showVoiceWaves: false,
+    recordingStartTime: null,
+    recordingTime: 0,
+    currentField: 'title',
+    activeFieldHighlight: ''
   })
-  const [transcript, setTranscript] = useState("")
-  const [saveCountdown, setSaveCountdown] = useState(AUTO_SAVE_COUNTDOWN)
-  const [autoSaving, setAutoSaving] = useState(false)
-  const [currentAction, setCurrentAction] = useState("")
-  const [showVoiceWaves, setShowVoiceWaves] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [recordingStartTime, setRecordingStartTime] = useState(null)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [autoConfirmCountdown, setAutoConfirmCountdown] = useState(null)
-  
 
-  // Refs
+  // Extract state variables for easier access
+  const {
+    recognizing, taskData, transcript, saveCountdown, autoSaving,
+    currentAction, showVoiceWaves, recordingStartTime, recordingTime,
+    currentField, activeFieldHighlight
+  } = state
+
+  // Animation refs
   const pulseAnim = useRef(new Animated.Value(1)).current
   const waveAnim1 = useRef(new Animated.Value(0)).current
   const waveAnim2 = useRef(new Animated.Value(0)).current
   const waveAnim3 = useRef(new Animated.Value(0)).current
-  const animationRef = useRef(null)
   const speechTimeoutRef = useRef(null)
-  const [autoConfirmTimer, setAutoConfirmTimer] = useState(null)
+
+  // Constants
+  const keywords = {
+    TITLE: ['title', 'task title', 'the title', 'title is', 'name', 'task name', 'create task', 'create a task'],
+    DESCRIPTION: ['description', 'details', 'content', 'describe', 'task details', 'the description'],
+    DUE_DATE: ['due date', 'deadline', 'due', 'due by', 'when is it due', 'complete by', 'finish by', 'date'],
+    CATEGORY: ['category', 'type', 'tag', 'label', 'group', 'the category', 'category is'],
+    PRIORITY: ['priority', 'importance', 'urgent', 'high priority', 'low priority', 'medium priority']
+  }
+
+  const validCategories = ['Tasks', 'Work', 'Projects', 'Personal', 'Meetings', 'Ideas', 'Notes']
+  const validPriorities = ['high', 'medium', 'low']
 
   // Theme object derived from dark mode setting
   const theme = {
-    background: isDarkMode ? "#121212" : colors.background,
-    surface: isDarkMode ? "#1E1E1E" : colors.surface,
-    text: isDarkMode ? "#E1E1E1" : "#1e293b",
-    secondaryText: isDarkMode ? "#ABABAB" : "#475569",
-    cardBg: isDarkMode ? "#2A2A2A" : "#fff",
-    cardHeader: isDarkMode ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.08)",
-    headerTitle: isDarkMode ? "#81ABFF" : "#1E40AF",
-    inputBg: isDarkMode ? "rgba(45, 45, 45, 0.8)" : "rgba(226, 232, 240, 0.2)",
-    inputBorder: isDarkMode ? "rgba(80, 80, 80, 0.8)" : "rgba(226, 232, 240, 0.8)",
-    dateContainerBg: isDarkMode ? "rgba(40, 50, 40, 0.84)" : "rgba(243, 255, 239, 0.84)",
-    dateBorder: isDarkMode ? "rgba(60, 80, 60, 0.5)" : "rgba(200, 220, 200, 0.5)",
-    backButtonBg: isDarkMode ? "rgba(60, 60, 60, 0.9)" : "rgba(226, 232, 240, 0.9)",
-    divider: isDarkMode ? "rgba(80, 80, 80, 0.2)" : "rgba(0, 0, 0, 0.05)",
-    voiceHintBg: isDarkMode ? "rgba(63, 63, 64, 0.6)" : "rgba(236, 242, 250, 0.8)",
-    voiceHintBorder: isDarkMode ? "rgba(116, 116, 117, 0.5)" : "rgba(200, 220, 240, 0.5)",
-    autoSaveBg: isDarkMode ? "rgba(40, 45, 55, 0.8)" : "rgba(240, 245, 250, 0.8)",
-    autoSaveBorder: isDarkMode ? "rgba(89, 89, 89, 0.8)" : "rgba(226, 232, 240, 0.8)",
+    background: isDarkMode ? '#121212' : colors.background,
+    surface: isDarkMode ? '#1E1E1E' : colors.surface,
+    text: isDarkMode ? '#E1E1E1' : '#1e293b',
+    secondaryText: isDarkMode ? '#ABABAB' : '#475569',
+    cardBg: isDarkMode ? '#2A2A2A' : '#fff',
+    fieldBg: isDarkMode ? '#333333' : '#f8fafc',
+    activeFieldBg: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)',
+    fieldBorder: isDarkMode ? 'rgba(80, 80, 80, 0.8)' : 'rgba(226, 232, 240, 0.8)',
+    activeFieldBorder: isDarkMode ? '#81ABFF' : '#3b82f6',
+    inputBg: isDarkMode ? 'rgba(45, 45, 45, 0.8)' : 'rgba(226, 232, 240, 0.2)',
+    voiceControlBg: isDarkMode ? '#333333' : '#f1f5f9',
+    statusBar: isDarkMode ? 'light' : 'dark'
   }
 
   // Handle voice animations
   useEffect(() => {
     if (recognizing) {
-      setShowVoiceWaves(true)
-
-      // Wave animations with staggered starts
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(waveAnim1, { toValue: 1, duration: 700, useNativeDriver: true }),
-          Animated.timing(waveAnim1, { toValue: 0, duration: 700, useNativeDriver: true }),
-        ]),
-      ).start()
-
-      setTimeout(() => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(waveAnim2, { toValue: 1, duration: 800, useNativeDriver: true }),
-            Animated.timing(waveAnim2, { toValue: 0, duration: 800, useNativeDriver: true }),
-          ]),
-        ).start()
-      }, 200)
-
-      setTimeout(() => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(waveAnim3, { toValue: 1, duration: 600, useNativeDriver: true }),
-            Animated.timing(waveAnim3, { toValue: 0, duration: 600, useNativeDriver: true }),
-          ]),
-        ).start()
-      }, 400)
+      dispatch({type: 'SET_SHOW_VOICE_WAVES', payload: true})
+      
+      // Start wave animations with staggered timing
+      const animations = [
+        [waveAnim1, 700, 0],
+        [waveAnim2, 800, 200],
+        [waveAnim3, 600, 400]
+      ];
+      
+      animations.forEach(([anim, duration, delay]) => {
+        setTimeout(() => {
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(anim, {toValue: 1, duration, useNativeDriver: true}),
+              Animated.timing(anim, {toValue: 0, duration, useNativeDriver: true})
+            ])
+          ).start()
+        }, delay)
+      })
     } else {
-      waveAnim1.setValue(0)
-      waveAnim2.setValue(0)
-      waveAnim3.setValue(0)
-      setShowVoiceWaves(false)
+      // Reset animations
+      [waveAnim1, waveAnim2, waveAnim3].forEach(anim => anim.setValue(0))
+      dispatch({type: 'SET_SHOW_VOICE_WAVES', payload: false})
     }
   }, [recognizing])
 
@@ -161,40 +184,34 @@ const NewTask = () => {
     if (recognizing) {
       pulseAnimation = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.3, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        ]),
+          Animated.timing(pulseAnim, {toValue: 1.3, duration: 800, useNativeDriver: true}),
+          Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: true})
+        ])
       )
       pulseAnimation.start()
     } else {
       pulseAnim.setValue(1)
     }
-    return () => {
-      if (pulseAnimation) pulseAnimation.stop()
-    }
+    return () => pulseAnimation?.stop()
   }, [recognizing])
 
-  // Deep link handling
+  // Initialize with deep link params or auto-start voice
   useEffect(() => {
     if (params.content) {
-      setTaskData((prev) => {
-        return {
-          ...prev,
-          title: params.content,
-          priority: params.priority || "",
-        }
+      dispatch({
+        type: 'SET_TASK_DATA', 
+        payload: { title: params.content, priority: params.priority || '' }
       })
-      setTranscript(params.content)
-      finishTask()
+      dispatch({type: 'SET_TRANSCRIPT', payload: params.content})
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-      if (params.autoStart === "true") {
+      if (params.autoStart === 'true') {
         setTimeout(() => saveTaskAndNavigate(), 1000)
       }
     } else {
       const timer = setTimeout(() => {
-        if (currentStep === 0 && !recognizing && !transcript) {
-          setCurrentAction("Starting voice input...")
+        if (!recognizing && !transcript && !taskData.title) {
+          dispatch({type: 'SET_CURRENT_ACTION', payload: 'Starting voice input...'})
           handleStart()
         }
       }, 1000)
@@ -202,23 +219,18 @@ const NewTask = () => {
     }
   }, [])
 
-  // Auto-process title after recognition stops
-  useEffect(() => {
-    if (!recognizing && transcript && currentStep === 0 && !isEditing) {
-      const timer = setTimeout(() => processTitleInput(), 1500)
-      return () => clearTimeout(timer)
-    }
-  }, [recognizing, transcript, currentStep])
-
   // Recording duration timer
   useEffect(() => {
     let interval
     if (recognizing) {
       interval = setInterval(() => {
-        setRecordingTime(Math.floor((Date.now() - (recordingStartTime || Date.now())) / 1000))
+        dispatch({
+          type: 'SET_RECORDING_TIME',
+          payload: Math.floor((Date.now() - (recordingStartTime || Date.now())) / 1000)
+        })
       }, 1000)
     } else {
-      setRecordingTime(0)
+      dispatch({type: 'SET_RECORDING_TIME', payload: 0})
     }
     return () => clearInterval(interval)
   }, [recognizing, recordingStartTime])
@@ -226,130 +238,350 @@ const NewTask = () => {
   // Auto-save countdown
   useEffect(() => {
     if (autoSaving && saveCountdown > 0) {
-      const timer = setTimeout(() => setSaveCountdown((prev) => prev - 1), 1000)
+      const timer = setTimeout(() => 
+        dispatch({type: 'SET_SAVE_COUNTDOWN', payload: saveCountdown - 1}), 
+      1000)
       return () => clearTimeout(timer)
     } else if (autoSaving && saveCountdown === 0) {
-      saveTaskAndNavigate()
+      // Validate before saving
+      const validationIssues = validateTask()
+      if (validationIssues.length > 0) {
+        dispatch({type: 'SET_AUTO_SAVING', payload: false})
+        dispatch({type: 'SET_CURRENT_ACTION', payload: `Please fix: ${validationIssues.join(', ')}`})
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+      } else {
+        saveTaskAndNavigate()
+      }
     }
   }, [autoSaving, saveCountdown])
 
   // Speech timeout handling
   useEffect(() => {
     if (recognizing) {
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current)
-
+      clearTimeout(speechTimeoutRef.current)
       speechTimeoutRef.current = setTimeout(() => {
         if (recognizing && !transcript) {
-          setCurrentAction("No speech detected, stopping...")
+          dispatch({type: 'SET_CURRENT_ACTION', payload: 'No speech detected, stopping...'})
           handleStop()
         }
       }, SPEECH_TIMEOUT)
     }
-    return () => {
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current)
-    }
+    return () => clearTimeout(speechTimeoutRef.current)
   }, [recognizing, transcript])
 
-  // Auto-confirm handling
+  // Highlight active field when changing
   useEffect(() => {
-    if (recognizing && currentStep === 0) {
-      if (autoConfirmTimer) clearTimeout(autoConfirmTimer)
-
-      const timer = setTimeout(() => {
-        if (recognizing && transcript) {
-          handleStop()
-          setTimeout(() => processTitleInput(), 500)
-        }
-      }, AUTO_CONFIRM_TIMEOUT)
-      setAutoConfirmTimer(timer)
+    if (currentField) {
+      dispatch({type: 'SET_ACTIVE_FIELD_HIGHLIGHT', payload: currentField})
+      const timer = setTimeout(() => 
+        dispatch({type: 'SET_ACTIVE_FIELD_HIGHLIGHT', payload: ''}), 
+      2000)
+      return () => clearTimeout(timer)
     }
-    return () => {
-      if (autoConfirmTimer) clearTimeout(autoConfirmTimer)
-    }
-  }, [recognizing, currentStep])
-
-  // Auto-confirm countdown display
-  useEffect(() => {
-    let interval
-    if (recognizing && transcript && currentStep === 0) {
-      const startTime = Date.now()
-      interval = setInterval(() => {
-        const elapsed = Date.now() - startTime
-        const remaining = Math.ceil((AUTO_CONFIRM_TIMEOUT - elapsed) / 1000)
-        setAutoConfirmCountdown(remaining <= 1 ? remaining : null)
-        if (elapsed >= AUTO_CONFIRM_TIMEOUT) clearInterval(interval)
-      }, 1000)
-    } else {
-      setAutoConfirmCountdown(null)
-    }
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [recognizing, transcript, currentStep])
-
+  }, [currentField])
+  
   // Speech recognition event handlers
-  useSpeechRecognitionEvent("start", () => {
-    setRecognizing(true)
-    setRecordingStartTime(Date.now())
+  useSpeechRecognitionEvent('start', () => {
+    dispatch({type: 'SET_RECOGNIZING', payload: true})
+    dispatch({type: 'SET_RECORDING_START_TIME', payload: Date.now()})
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)
-    setCurrentAction("Listening...")
+    dispatch({type: 'SET_CURRENT_ACTION', payload: 'Listening... Say title, description, due date, category, or priority'})
   })
 
-  useSpeechRecognitionEvent("end", () => {
-    setRecognizing(false)
+  useSpeechRecognitionEvent('end', () => {
+    dispatch({type: 'SET_RECOGNIZING', payload: false})
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    setCurrentAction(transcript ? "Processing input..." : "No speech detected")
-    if (isEditing && transcript) {
-      setTaskData((prev) => ({ ...prev, title: transcript }))
-      setIsEditing(false)
-      setCurrentStep(1)
+
+    if (transcript) {
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Processing your input...'})
+      setTimeout(() => {
+        dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready - tap mic to add more details'})
+      }, 1500)
+    } else {
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready - tap mic to add details'})
     }
   })
 
-  useSpeechRecognitionEvent("result", (event) => {
-    const newTranscript = event.results[0]?.transcript || ""
-    setTranscript(newTranscript)
+  useSpeechRecognitionEvent('result', event => {
+    const newTranscript = event.results[0]?.transcript || ''
+    dispatch({type: 'SET_TRANSCRIPT', payload: newTranscript})
 
-    if (newTranscript) {
-      if (speechTimeoutRef.current) {
-        clearTimeout(speechTimeoutRef.current)
-        speechTimeoutRef.current = setTimeout(() => {
-          if (recognizing) handleStop()
-        }, SPEECH_TIMEOUT)
-      }
+    // Process the transcript
+    if (newTranscript.trim()) {
+      processSpeechInput(newTranscript, event.isFinal)
+    }
 
-      if (autoConfirmTimer) {
-        clearTimeout(autoConfirmTimer)
-        setAutoConfirmTimer(
-          setTimeout(() => {
-            if (recognizing && transcript) {
-              handleStop()
-              setTimeout(() => processTitleInput(), 1000)
-            }
-          }, AUTO_CONFIRM_TIMEOUT),
-        )
+    // Reset speech timeout
+    clearTimeout(speechTimeoutRef.current)
+    speechTimeoutRef.current = setTimeout(() => {
+      if (recognizing) handleStop()
+    }, SPEECH_TIMEOUT)
+  })
+
+  // Helper functions for speech processing
+  const processSpeechInput = (text, isFinal) => {
+    const lowerText = text.toLowerCase()
+    const commandKeywords = ['done', 'save task', 'finish task', "that's it", 'complete task']
+    
+    // Check for command keywords first
+    if (isFinal && commandKeywords.some(keyword => lowerText.includes(keyword))) {
+      handleStop()
+      setTimeout(() => finishTask(), 500)
+      return
+    }
+
+    // Check for field keywords
+    let fieldDetected = false
+    for (const [field, fieldKeywords] of Object.entries(keywords)) {
+      if (containsAny(lowerText, fieldKeywords)) {
+        const fieldName = field.toLowerCase()
+        const content = extractContentAfterKeyword(text, lowerText, fieldKeywords)
+        
+        // Skip if it looks like a command
+        if (content && commandKeywords.some(cmd => content.toLowerCase().includes(cmd))) {
+          continue
+        }
+        
+        dispatch({type: 'SET_CURRENT_FIELD', payload: fieldName})
+        dispatch({type: 'SET_CURRENT_ACTION', payload: `Processing ${fieldName.replace('_', ' ')}...`})
+        
+        if (content && content.trim().length > 0) {
+          updateTaskField(fieldName, content)
+          dispatch({type: 'SET_CURRENT_ACTION', payload: `${fieldName.replace('_', ' ')} captured: "${content}"`})
+        }
+        fieldDetected = true
+        break
       }
     }
-  })
+    
+    // If no keyword found, assume content is for current field
+    if (!fieldDetected && text.trim() && !commandKeywords.some(cmd => lowerText.includes(cmd))) {
+      updateTaskField(currentField, text)
+      dispatch({type: 'SET_CURRENT_ACTION', payload: `${currentField.replace('_', ' ')} updated: "${text}"`})
+    }
+  }
+  
+  // Helper function to update task data based on field
+  const updateTaskField = (field, content) => {
+    switch (field) {
+      case 'title':
+        dispatch({type: 'SET_TASK_DATA', payload: {title: content}})
+        break
+      case 'description':
+        dispatch({type: 'SET_TASK_DATA', payload: {content: content}})
+        break
+      case 'due_date':
+        dispatch({type: 'SET_TASK_DATA', payload: {dueDate: processDateString(content)}})
+        break
+      case 'category':
+        dispatch({type: 'SET_TASK_DATA', payload: {
+          category: findClosestCategory(content, validCategories) || 'Tasks'
+        }})
+        break
+      case 'priority':
+        dispatch({type: 'SET_TASK_DATA', payload: {
+          priority: findClosestPriority(content, validPriorities) || 'medium'
+        }})
+        break
+    }
+  }
+
+  // Helper function to process date strings
+  const processDateString = dateText => {
+    const lowerDateText = dateText.toLowerCase().trim()
+    const today = new Date()
+
+    // Handle relative dates
+    if (lowerDateText.includes('today')) {
+      return today.toISOString().split('T')[0]
+    }
+
+    if (lowerDateText.includes('tomorrow')) {
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      return tomorrow.toISOString().split('T')[0]
+    }
+
+    if (lowerDateText.match(/\d+\s*days?\s*from\s*(today|now)/)) {
+      const daysMatch = lowerDateText.match(/(\d+)\s*days?\s*from/)
+      if (daysMatch && daysMatch[1]) {
+        const days = parseInt(daysMatch[1])
+        const futureDate = new Date(today)
+        futureDate.setDate(futureDate.getDate() + days)
+        return futureDate.toISOString().split('T')[0]
+      }
+    }
+
+    if (lowerDateText.match(/next\s*(week|month|year)/)) {
+      const unit = lowerDateText.match(/next\s*(week|month|year)/)[1]
+      const futureDate = new Date(today)
+
+      if (unit === 'week') {
+        futureDate.setDate(futureDate.getDate() + 7)
+      } else if (unit === 'month') {
+        futureDate.setMonth(futureDate.getMonth() + 1)
+      } else if (unit === 'year') {
+        futureDate.setFullYear(futureDate.getFullYear() + 1)
+      }
+
+      return futureDate.toISOString().split('T')[0]
+    }
+
+    // Handle month and date combinations
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+
+    // Check for patterns like "March 15" or "15th of March"
+    for (let i = 0; i < monthNames.length; i++) {
+      const monthName = monthNames[i]
+
+      // Pattern: "March 15" or "March 15th"
+      const pattern1 = new RegExp(`${monthName}\\s+(\\d+)(st|nd|rd|th)?`, 'i')
+      // Pattern: "15th of March"
+      const pattern2 = new RegExp(`(\\d+)(st|nd|rd|th)?\\s+of\\s+${monthName}`, 'i')
+
+      let match = lowerDateText.match(pattern1) || lowerDateText.match(pattern2)
+      if (match) {
+        const day = parseInt(match[1])
+        const month = i // 0-based month index
+        const year = today.getFullYear()
+
+        // If the date is in the past, assume next year
+        const dateObj = new Date(year, month, day)
+        if (dateObj < today) {
+          dateObj.setFullYear(year + 1)
+        }
+
+        return dateObj.toISOString().split('T')[0]
+      }
+    }
+
+    // Try to parse explicit date formats
+    try {
+      // Try to parse via Date constructor
+      const parsedDate = new Date(dateText)
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toISOString().split('T')[0]
+      }
+    } catch (e) {
+      console.log('Error parsing date:', e)
+    }
+
+    // Return the original text if parsing fails
+    return dateText
+  }
+
+  // Helper functions for matching categories and priorities
+  const findClosestCategory = (input, categories) => {
+    // Direct match first
+    const lowerInput = input.toLowerCase().trim()
+    const directMatch = categories.find(c => lowerInput.includes(c.toLowerCase()))
+    return directMatch || categories[0]
+  }
+
+  const findClosestPriority = (input, priorities) => {
+    const lowerInput = input.toLowerCase().trim()
+    // Direct match
+    for (const priority of priorities) {
+      if (lowerInput.includes(priority)) return priority
+    }
+    // Handle common expressions
+    if (lowerInput.includes('urgent') || lowerInput.includes('important')) return 'high'
+    if (lowerInput.includes('not urgent') || lowerInput.includes('can wait')) return 'low'
+    return 'medium'
+  }
+
+  // Helper functions for text processing
+  const containsAny = (text, keywords) => {
+    return keywords.some(keyword => {
+      const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'i')
+      return regex.test(text)
+    })
+  }
+
+  const extractContentAfterKeyword = (text, lowerText, keywords) => {
+    for (const keyword of keywords) {
+      if (lowerText.includes(keyword.toLowerCase())) {
+        const keywordIndex = lowerText.indexOf(keyword.toLowerCase())
+        const content = text.substring(keywordIndex + keyword.length).trim()
+        if (content && !['is', 'the', 'a', 'an', 'this', 'that'].includes(content.toLowerCase())) {
+          return content
+        }
+      }
+    }
+    return null
+  }
+
+  // Voice command processor
+  const processVoiceCommand = command => {
+    if (handleVoiceCommand(command)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Toast.show({
+        type: 'success',
+        text1: 'Command recognized',
+        text2: command,
+        visibilityTime: 2000,
+        position: 'bottom'
+      })
+      return true
+    }
+    return false
+  }
+
+  const handleVoiceCommand = command => {
+    const lowerCommand = command.toLowerCase()
+
+    if (lowerCommand.includes('cancel') || lowerCommand.includes('stop')) {
+      handleStop()
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Voice input cancelled'})
+      return true
+    }
+
+    if (lowerCommand.includes('done') || lowerCommand.includes('save task') || 
+        lowerCommand.includes('finish task') || lowerCommand.includes("that's it")) {
+      handleStop()
+      setTimeout(() => finishTask(), 500)
+      return true
+    }
+
+    if (lowerCommand.includes('start over') || lowerCommand.includes('reset')) {
+      handleStop()
+      dispatch({type: 'RESET_TASK'})
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Starting over...'})
+      return true
+    }
+
+    return false
+  }
 
   // Start speech recognition
   const handleStart = async () => {
     const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
     if (!result.granted) {
-      console.warn("Permissions not granted", result)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      setCurrentAction("Microphone permission denied")
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Microphone permission denied'})
       return
     }
 
-    setCurrentAction("I'm listening...")
+    dispatch({type: 'SET_CURRENT_ACTION', payload: "I'm listening... Say title, description, due date, category, or priority"})
+    
+    const contextualStrings = [
+      'done', 'save task', 'finish task', "that's it", 'cancel', 'stop', 
+      'start over', 'reset', 'title', 'description', 'due date', 'category', 
+      'priority', 'task', 'project', 'deadline', 'work', 'personal', 'high', 
+      'medium', 'low', 'notes', 'meetings', 'create task', 'todo', 'to-do', 
+      'today', 'tomorrow', 'next week', 'days from now', 'next month',
+      'January', 'February', 'March', 'April', 'May', 'June', 'July', 
+      'August', 'September', 'October', 'November', 'December'
+    ]
+    
     ExpoSpeechRecognitionModule.start({
-      lang: "en-US",
+      lang: 'en-US',
       interimResults: true,
       maxAlternatives: 1,
       continuous: true,
       requiresOnDeviceRecognition: false,
       addsPunctuation: true,
+      contextualStrings
     })
   }
 
@@ -357,232 +589,589 @@ const NewTask = () => {
   const handleStop = () => {
     ExpoSpeechRecognitionModule.stop()
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setCurrentAction("Processing...")
-    if (autoConfirmTimer) {
-      clearTimeout(autoConfirmTimer)
-      setAutoConfirmTimer(null)
-    }
+    dispatch({type: 'SET_CURRENT_ACTION', payload: 'Processing...'})
   }
 
-  // Process the title input
-  const processTitleInput = () => {
-    if (transcript) {
-      setCurrentAction("Title captured, finalizing task")
-      setTaskData((prev) => ({ ...prev, title: transcript }))
-      finishTask()
+  // Task validation
+  const validateTask = () => {
+    const issues = []
+    if (!taskData.title || taskData.title.trim() === '') {
+      issues.push('Title is required')
     }
+    if (taskData.dueDate && !isValidDate(taskData.dueDate)) {
+      issues.push('Due date is not valid')
+    }
+    if (taskData.priority && !validPriorities.includes(taskData.priority.toLowerCase())) {
+      issues.push('Priority must be high, medium, or low')
+    }
+    return issues
+  }
+
+  const isValidDate = dateString => {
+    if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return true
+    }
+    const date = new Date(dateString)
+    return !isNaN(date.getTime())
+  }
+
+  // Save task and prepare for auto-save
+  const finishTask = () => {
+    dispatch({type: 'SET_TRANSCRIPT', payload: ''})
+    dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task ready to save'})
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    
+    dispatch({
+      type: 'SET_TASK_DATA', 
+      payload: {created: new Date().toISOString()}
+    })
+    
+    dispatch({type: 'SET_SAVE_COUNTDOWN', payload: AUTO_SAVE_COUNTDOWN})
+    dispatch({type: 'SET_AUTO_SAVING', payload: true})
   }
 
   // Save task and navigate
   const saveTaskAndNavigate = () => {
     try {
-      // Create the task data
       const now = new Date()
-      
-      // Define the priority color mapping
-      const priorityColorMap = {
-        high: "#DB2777",
-        medium: "#4F46E5",
-        low: "#059669"
+      let normalizedPriority = (taskData.priority || 'medium').toLowerCase()
+      if (!validPriorities.includes(normalizedPriority)) {
+        normalizedPriority = 'medium'
       }
-      
-      // Define the category based on priority
-      const category = taskData.priority === "high" ? "Important" : "Tasks"
-      
-      // Define the color based on priority
-      const color = priorityColorMap[taskData.priority || "low"]
-      
-      // Create the note in Realm using the NoteService
+
+      // Process due date
+      let formattedDueDate = null
+      if (taskData.dueDate) {
+        if (typeof taskData.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(taskData.dueDate)) {
+          formattedDueDate = taskData.dueDate
+        } else {
+          try {
+            const date = new Date(taskData.dueDate)
+            if (!isNaN(date.getTime())) {
+              formattedDueDate = date.toISOString().split('T')[0]
+            }
+          } catch (e) {
+            console.error('Error formatting date:', e)
+          }
+        }
+      }
+
+      const categoryColorMap = {
+        Tasks: '#059669',
+        Work: '#4F46E5',
+        Ideas: '#DB2777',
+        Personal: '#D97706',
+        Projects: '#7C3AED',
+        Meetings: '#BE123C',
+        Notes: '#4F46E5'
+      }
+
+      const category = (taskData.category || 'Tasks').trim()
+      const color = categoryColorMap[category] || '#059669'
+
+      // Create the note
       const noteId = noteService.createNote(
-        taskData.title,  // title
-        "",              // content (empty initially)
-        category,        // category
-        color,           // color
-        false            // isCompleted
+        taskData.title, 
+        taskData.content || '', 
+        category, 
+        color, 
+        false, 
+        formattedDueDate, 
+        normalizedPriority
       )
-      
-      // Create a simple object to pass via navigation params
+
       const noteData = {
         id: noteId,
         title: taskData.title,
-        content: "",
-        category: category,
-        color: color,
-        date: now.toISOString().split("T")[0]
+        content: taskData.content || '',
+        category,
+        color,
+        createdAt: now,
+        updatedAt: now,
+        dueDate: formattedDueDate,
+        priority: normalizedPriority,
+        alreadySaved: true
       }
-  
-      // Handle navigation based on the params
-      if (params.returnToTabs === "true") {
+
+      // Navigate based on parameters
+      if (params.returnToTabs === 'true') {
         router.replace({
-          pathname: "/(tabs)",
-          params: { newNote: JSON.stringify(noteData), timestamp: Date.now() },
+          pathname: '/(tabs)',
+          params: {
+            newNote: JSON.stringify(noteData),
+            timestamp: Date.now()
+          }
         })
       } else {
         setTimeout(() => RNExitApp.exitApp(), 1000)
       }
-  
-      setCurrentAction("Task saved successfully")
+
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task saved successfully'})
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     } catch (error) {
-      console.error("Error preparing task data:", error)
-      setCurrentAction("Error saving task")
+      console.error('Error preparing task data:', error)
+      dispatch({type: 'SET_CURRENT_ACTION', payload: 'Error saving task'})
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     }
   }
 
-  // Finalize task creation
-  const finishTask = () => {
-    setCurrentStep(1)
-    setTranscript("")
-    setCurrentAction("Task created successfully")
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-
-    if (animationRef.current) setTimeout(() => animationRef.current.play(), 100)
-
-    setTaskData((prev) => ({ ...prev, created: new Date().toISOString() }))
-    setSaveCountdown(AUTO_SAVE_COUNTDOWN)
-    setAutoSaving(true)
+  // Show tutorial
+  const showTutorial = () => {
+    Alert.alert(
+      'Voice Task Creation', 
+      'You can use these voice commands:\n\n' + 
+      '• "Title: Buy groceries"\n' + 
+      '• "Description: Milk, eggs, bread"\n' + 
+      '• "Due date: Tomorrow"\n' + 
+      '• "Category: Shopping"\n' + 
+      '• "Priority: High"\n\n' + 
+      'Say "Done" or "Save task" when finished', 
+      [{text: 'Got it!'}]
+    )
   }
 
-  // Helper functions
-  const getStepLabel = () => {
-    switch (currentStep) {
-      case 0:
-        return isEditing ? "Editing Task Title" : "Recording Task Title"
-      default:
-        return "Task Summary"
+  // Format date for display
+  const formatDate = dateString => {
+    if (!dateString) return null
+
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return dateString
+
+      const today = new Date()
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today'
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow'
+      } else {
+        return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})
+      }
+    } catch (e) {
+      return dateString
     }
   }
 
-  const getStepInstructions = () => {
-    switch (currentStep) {
-      case 0:
-        return isEditing ? "Speak a new title for your task" : "Speak a clear title for your task"
-      default:
-        return ""
+  // UI Components
+  
+  // Field component
+  const TaskField = ({label, value, fieldKey, icon}) => {
+    const isActive = activeFieldHighlight === fieldKey
+    const fieldIcons = {
+      title: 'edit-3',
+      description: 'align-left',
+      due_date: 'calendar',
+      category: 'tag',
+      priority: 'flag'
     }
+
+    const fieldIcon = icon || fieldIcons[fieldKey] || 'circle'
+
+    const handleFieldTap = () => {
+      dispatch({type: 'SET_CURRENT_FIELD', payload: fieldKey})
+      if (!recognizing) {
+        handleStart()
+        setTimeout(() => {
+          dispatch({type: 'SET_CURRENT_ACTION', payload: `Tell me the ${label.toLowerCase()}...`})
+        }, 500)
+      }
+    }
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.fieldContainer,
+          {
+            backgroundColor: isActive ? theme.activeFieldBg : theme.fieldBg,
+            borderColor: isActive ? theme.activeFieldBorder : theme.fieldBorder
+          }
+        ]}
+        onPress={handleFieldTap}
+      >
+        <View style={styles.fieldHeader}>
+          <Feather name={fieldIcon} size={16} color={colors.primary} style={styles.fieldIcon} />
+          <Text style={[styles.fieldLabel, {color: theme.secondaryText}]}>{label}</Text>
+        </View>
+
+        {value ? (
+          <Text 
+            style={[styles.fieldValue, {color: theme.text}]} 
+            numberOfLines={fieldKey === 'description' ? 2 : 1}
+          >
+            {fieldKey === 'due_date' 
+              ? formatDate(value) 
+              : fieldKey === 'priority' 
+                ? value.charAt(0).toUpperCase() + value.slice(1) 
+                : value}
+          </Text>
+        ) : (
+          <Text style={[styles.fieldPlaceholder, {color: theme.secondaryText}]}>
+            {`Tap to add ${label.toLowerCase()}`}
+          </Text>
+        )}
+      </TouchableOpacity>
+    )
   }
+  
+  // Voice button component
+  const VoiceButton = () => (
+    <Animated.View style={[styles.voiceButtonContainer, {transform: [{scale: pulseAnim}]}]}>
+      <TouchableOpacity
+        style={[
+          styles.voiceButton,
+          {backgroundColor: recognizing ? colors.error : colors.primary}
+        ]}
+        onPress={recognizing ? handleStop : handleStart}
+      >
+        <Feather name={recognizing ? 'x' : 'mic'} size={24} color="white" />
+      </TouchableOpacity>
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar style={isDarkMode ? "light" : "dark"} />
+      {recognizing && (
+        <Text style={styles.recordingTime}>
+          {recordingTime > 0 ? `${recordingTime}s` : ''}
+        </Text>
+      )}
+    </Animated.View>
+  )
 
-      <Header
-        router={router}
-        params={params}
-        isDarkMode={isDarkMode}
-        theme={theme}
-        recognizing={recognizing}
-        recordingTime={recordingTime}
-        getStepLabel={getStepLabel}
-        colors={colors}
-      />
-
-      <View style={styles.actionIndicator}>
-        <Text style={[styles.actionText, { color: colors.primary }]}>{currentAction}</Text>
+// VoiceWaves component (optimized from your second document)
+const VoiceWaves = () => {
+    if (!showVoiceWaves) return null
+  
+    // Optimized array mapping for the waves
+    return (
+      <View style={styles.waveContainer}>
+        {[
+          { anim: waveAnim1, height: 12 },
+          { anim: waveAnim2, height: 18 },
+          { anim: waveAnim3, height: 14 }
+        ].map((wave, index) => (
+          <Animated.View
+            key={`wave-${index}`}
+            style={[
+              styles.wave,
+              {
+                height: wave.height,
+                backgroundColor: colors.primary,
+                opacity: wave.anim,
+                transform: [{
+                  scaleY: wave.anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.2, 1]
+                  })
+                }]
+              }
+            ]}
+          />
+        ))}
       </View>
-
-      <Surface style={[styles.transcriptSurface, { backgroundColor: theme.cardBg }]}>
-        <ScrollView
-          contentContainerStyle={styles.transcriptScrollview}
+    )
+  }
+  
+    // Help button component (simplified)
+    const HelpButton = () => (
+      <TouchableOpacity style={styles.helpButton} onPress={showTutorial}>
+        <Feather name="help-circle" size={20} color={colors.primary} />
+      </TouchableOpacity>
+    )
+  
+    // Action indicator with wave animations
+    const ActionIndicator = () => (
+      <View style={[
+        styles.actionIndicator, 
+        {backgroundColor: theme.voiceControlBg}
+      ]}>
+        <Text style={[styles.actionText, {color: colors.primary}]}>
+          {currentAction}
+        </Text>
+        {showVoiceWaves && <VoiceWaves />}
+      </View>
+    )
+  
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: theme.background}]}>
+        <StatusBar style={theme.statusBar} />
+  
+        {/* Header area */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.replace({pathname: '/(tabs)'})}
+          >
+            <Feather name="arrow-left" size={20} color={theme.text} />
+          </TouchableOpacity>
+  
+          <Text style={[styles.headerTitle, {color: theme.text}]}>
+            New Task
+            {recognizing && recordingTime > 0 ? ` (${recordingTime}s)` : ''}
+          </Text>
+  
+          <HelpButton />
+        </View>
+  
+        <ActionIndicator />
+  
+        {/* Task fields area */}
+        <ScrollView 
+          style={[styles.formContainer, {backgroundColor: theme.cardBg}]} 
+          contentContainerStyle={styles.formContent} 
           showsVerticalScrollIndicator={false}
         >
-          <VoiceWaves
-            showVoiceWaves={showVoiceWaves}
-            recognizing={recognizing}
-            waveAnim1={waveAnim1}
-            waveAnim2={waveAnim2}
-            waveAnim3={waveAnim3}
-            colors={colors}
-          />
-
-          {currentStep === 1 ? (
-            <TaskSummary
-              theme={theme}
-              colors={colors}
-              taskData={taskData}
-              autoSaving={autoSaving}
-              saveCountdown={saveCountdown}
+          {/* Map all fields to reduce redundancy */}
+          {[
+            {label: "Title", value: taskData.title, fieldKey: "title"},
+            {label: "Description", value: taskData.content, fieldKey: "description"},
+            {label: "Due Date", value: taskData.dueDate, fieldKey: "due_date"},
+            {label: "Category", value: taskData.category, fieldKey: "category"},
+            {label: "Priority", value: taskData.priority, fieldKey: "priority"}
+          ].map(field => (
+            <TaskField 
+              key={field.fieldKey}
+              label={field.label} 
+              value={field.value} 
+              fieldKey={field.fieldKey} 
             />
-          ) : transcript ? (
-            <TranscriptView transcript={transcript} theme={theme} colors={colors} />
-          ) : (
-            <EmptyState
-              isDarkMode={isDarkMode}
-              colors={colors}
-              theme={theme}
-              getStepInstructions={getStepInstructions}
-              handleStart={handleStart}
-              recognizing={recognizing}
-              currentStep={currentStep}
-              isEditing={isEditing}
-            />
+          ))}
+  
+          {/* Transcript display */}
+          {transcript && (
+            <View style={styles.transcriptContainer}>
+              <Text style={[styles.transcriptLabel, {color: theme.secondaryText}]}>
+                Heard:
+              </Text>
+              <Text style={[styles.transcriptText, {color: theme.text}]}>
+                {transcript}
+              </Text>
+            </View>
           )}
-
-          <StepIndicator currentStep={currentStep} colors={colors} isDarkMode={isDarkMode} />
         </ScrollView>
-      </Surface>
-
-      <View style={styles.controls}>
-        {currentStep < 1 ? (
-          <VoiceControls
-            theme={theme}
-            isEditing={isEditing}
-            recognizing={recognizing}
-            autoConfirmCountdown={autoConfirmCountdown}
-            recordingTime={recordingTime}
-            handleStop={handleStop}
-            handleStart={handleStart}
-            colors={colors}
-          />
-        ) : (
-          <FinalButtons
-            theme={theme}
-            colors={colors}
-            setCurrentStep={setCurrentStep}
-            taskData={taskData}
-            setTranscript={setTranscript}
-            setCurrentAction={setCurrentAction}
-            setAutoSaving={setAutoSaving}
-            setIsEditing={setIsEditing}
-            saveTaskAndNavigate={saveTaskAndNavigate}
-          />
+  
+        {/* Bottom controls */}
+        <View style={styles.bottomControls}>
+          <VoiceButton />
+  
+          {/* Save button */}
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: taskData.title ? colors.primary : theme.voiceControlBg,
+                opacity: taskData.title ? 1 : 0.5
+              }
+            ]}
+            onPress={finishTask}
+            disabled={!taskData.title}
+          >
+            <Feather name="check" size={22} color={taskData.title ? 'white' : theme.secondaryText} />
+            <Text style={[
+              styles.saveButtonText, 
+              {color: taskData.title ? 'white' : theme.secondaryText}
+            ]}>
+              {autoSaving ? `Saving (${saveCountdown})` : 'Save Task'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+  
+        {/* Additional voice controls */}
+        {recognizing && (
+          <View style={[styles.voiceControlsContainer, {backgroundColor: theme.voiceControlBg}]}>
+            {[
+              {icon: "x-circle", text: "Cancel", command: "cancel", color: theme.secondaryText},
+              {icon: "refresh-cw", text: "Reset", command: "reset", color: theme.secondaryText},
+              {icon: "check-circle", text: "Done", command: "done", color: colors.primary}
+            ].map((control, index) => (
+              <TouchableOpacity 
+                key={`control-${index}`}
+                style={styles.voiceControlButton} 
+                onPress={() => processVoiceCommand(control.command)}
+              >
+                <Feather name={control.icon} size={18} color={control.color} />
+                <Text style={[styles.voiceControlText, {color: control.color}]}>
+                  {control.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
-      </View>
-
-      <NavigationBarThemeHandler
-        specialState={recognizing}
-        specialColor={recognizing ? (isDarkMode ? "rgb(29, 21, 21)" : "rgb(245, 228, 228)") : null}
-        specialButtonStyle={isDarkMode ? "light" : "dark"}
-      />
-    </SafeAreaView>
-  )
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: Platform.OS === "ios" ? 20 : 20 },
-  actionIndicator: {
-    backgroundColor: "rgba(226, 232, 240, 0.5)",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
-  actionText: { fontSize: 14, fontWeight: "500" },
-  transcriptSurface: {
-    flex: 1,
-    borderRadius: 20,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    marginBottom: 24,
-    overflow: "hidden",
-  },
-  transcriptScrollview: { flexGrow: 1, justifyContent: "center", padding: 20 },
-  controls: { paddingBottom: 40, alignItems: "center", justifyContent: "center" },
-})
-
-export default NewTask
+  
+        <NavigationBarThemeHandler 
+          specialState={recognizing} 
+          specialColor={recognizing ? (isDarkMode ? 'rgb(29, 21, 21)' : 'rgb(245, 228, 228)') : null} 
+          specialButtonStyle={isDarkMode ? 'light' : 'dark'} 
+        />
+      </SafeAreaView>
+    )
+  }
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      paddingTop: 8
+    },
+    backButton: {
+      padding: 8
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      flex: 1,
+      textAlign: 'center'
+    },
+    helpButton: {
+      padding: 8
+    },
+    actionIndicator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 12,
+      borderRadius: 12,
+      marginHorizontal: 16,
+      marginVertical: 8
+    },
+    actionText: {
+      fontSize: 14,
+      fontWeight: '500'
+    },
+    formContainer: {
+      flex: 1,
+      marginHorizontal: 16,
+      borderRadius: 16,
+      shadowColor: '#000',
+      shadowOffset: {width: 0, height: 2},
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 2
+    },
+    formContent: {
+      padding: 16,
+      paddingBottom: 24
+    },
+    fieldContainer: {
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12
+    },
+    fieldHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 4
+    },
+    fieldIcon: {
+      marginRight: 8
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: '500'
+    },
+    fieldValue: {
+      fontSize: 16,
+      fontWeight: '400',
+      marginTop: 2
+    },
+    fieldPlaceholder: {
+      fontSize: 15,
+      fontWeight: '400',
+      fontStyle: 'italic',
+      marginTop: 2
+    },
+    transcriptContainer: {
+      marginTop: 16,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(100, 100, 100, 0.2)',
+      borderStyle: 'dashed'
+    },
+    transcriptLabel: {
+      fontSize: 13,
+      fontWeight: '500',
+      marginBottom: 4
+    },
+    transcriptText: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontStyle: 'italic'
+    },
+    bottomControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      paddingBottom: Platform.OS === 'ios' ? 24 : 16
+    },
+    voiceButtonContainer: {
+      alignItems: 'center'
+    },
+    voiceButton: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: {width: 0, height: 2},
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 3
+    },
+    recordingTime: {
+      marginTop: 4,
+      fontSize: 12,
+      fontWeight: '500',
+      color: '#666'
+    },
+    saveButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 48,
+      flex: 1,
+      marginLeft: 16,
+      borderRadius: 12,
+      paddingHorizontal: 16
+    },
+    saveButtonText: {
+      marginLeft: 8,
+      fontSize: 16,
+      fontWeight: '600'
+    },
+    voiceControlsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      paddingVertical: 12,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(100, 100, 100, 0.1)'
+    },
+    voiceControlButton: {
+      alignItems: 'center',
+      padding: 8
+    },
+    voiceControlText: {
+      fontSize: 12,
+      marginTop: 4
+    },
+    waveContainer: {
+      flexDirection: 'row',
+      height: 20,
+      alignItems: 'center',
+      marginLeft: 12
+    },
+    wave: {
+      width: 3,
+      marginHorizontal: 2,
+      borderRadius: 1
+    }
+  })
+  
+  export default NewTask

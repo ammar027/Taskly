@@ -14,7 +14,8 @@ export const NoteSchema = {
     isSynced: { type: 'bool', default: false },
     hardDeleted: { type: 'bool', default: false },
     isCompleted: { type: 'bool', default: false },
-    dueDate: { type: 'string', optional: true }, 
-    priority: { type: 'string', default: 'medium' }, 
+    dueDate: { type: 'string', optional: true },
+    priority: { type: 'string', default: 'medium' },
+    reminder: { type: 'string', optional: true },
   },
 };

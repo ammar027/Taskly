@@ -539,8 +539,7 @@ export default function RemindersScreen() {
     
     setModalVisible(false)
     
-    // Reset navigation bar position after closing modal
-    setTimeout(setNavigationBarPosition, 300);
+
   }
 
   // Get priority colors based on theme
@@ -704,8 +703,6 @@ export default function RemindersScreen() {
                 style={styles.datePickerButton}
                 onPress={() => {
                   setShowDatePicker(false)
-                  // Reset navigation bar after closing date picker
-                  setNavigationBarPosition()
                 }}
               >
                 <Text style={[styles.datePickerButtonText, { color: colors.accent }]}>Done</Text>
@@ -796,8 +793,6 @@ export default function RemindersScreen() {
           visible={modalVisible}
           onRequestClose={() => {
             setModalVisible(false)
-            // Reset navigation bar when closing modal
-            setTimeout(setNavigationBarPosition, 300)
           }}
           statusBarTranslucent
         >

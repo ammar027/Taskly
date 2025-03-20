@@ -42,7 +42,7 @@ export const ResponsiveHeader = ({ notesCount, onTrashPress }) => {
               Welcome back!
             </Text>
             <Text style={[styles.subtitle, { color: theme.mutedTextColor }]}>
-              You have {notesCount} notes
+              You have {notesCount} tasks
             </Text>
           </View>
         ) : (
@@ -54,7 +54,7 @@ export const ResponsiveHeader = ({ notesCount, onTrashPress }) => {
               contentFit="cover"
             />
             <Text style={[styles.subtitle, { color: theme.mutedTextColor, marginTop: 8 }]}>
-              You have {notesCount} notes
+              You have {notesCount} tasks
             </Text>
           </View>
         )}

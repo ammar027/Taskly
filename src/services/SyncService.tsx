@@ -157,8 +157,9 @@ export default function SyncService({ userId }) {
           isDeleted: note.isDeleted,
           hardDeleted: note.hardDeleted,
           isCompleted: note.isCompleted,
-          dueDate: note.dueDate, // Add dueDate field
-          priority: note.priority, // Add priority field
+          dueDate: note.dueDate,
+          priority: note.priority,
+          reminder: note.reminder,
         }))
 
         const batchPromises = batchNotesData.map(async (noteData) => {
@@ -221,6 +222,7 @@ export default function SyncService({ userId }) {
               is_completed: noteData.isCompleted,
               due_date: noteData.dueDate ? (noteData.dueDate instanceof Date ? noteData.dueDate.toISOString() : noteData.dueDate) : null,
               priority: noteData.priority || "medium",
+              reminder: noteData.reminder,
             }
 
             // Upsert to Supabase
@@ -327,8 +329,9 @@ export default function SyncService({ userId }) {
                   color: remoteNote.color || "#4F46E5",
                   isDeleted: remoteNote.is_deleted,
                   isCompleted: remoteNote.is_completed || false,
-                  dueDate: remoteNote.due_date ? new Date(remoteNote.due_date) : null, // Add dueDate field
-                  priority: remoteNote.priority || "medium", // Add priority field
+                  dueDate: remoteNote.due_date ? new Date(remoteNote.due_date) : null,
+                  priority: remoteNote.priority || "medium",
+                  reminder: remoteNote.reminder,
                   isSynced: true,
                 })
                 console.log(`Created new local note from remote: ${remoteNote.id}`)
@@ -346,6 +349,7 @@ export default function SyncService({ userId }) {
                   localNote.isCompleted = remoteNote.is_completed || false
                   localNote.dueDate = remoteNote.due_date ? new Date(remoteNote.due_date) : null
                   localNote.priority = remoteNote.priority || "medium"
+                  localNote.reminder = remoteNote.reminder
                   localNote.isSynced = true
                   console.log(`Updated local note from remote: ${remoteNote.id}`)
                 } else if (localUpdatedAt > remoteUpdatedAt && !localNote.isSynced) {
@@ -390,13 +394,13 @@ export default function SyncService({ userId }) {
               syncData()
             }
           })
-        }, 30000)
+        }, 10000)
 
         return intervalId
       } else {
         console.log("Device offline - scheduling initial sync retry")
-        // Try again in 50 seconds
-        return setTimeout(attemptInitialSync, 50000)
+        // Try again in 40 seconds
+        return setTimeout(attemptInitialSync, 40000)
       }
     }
 

@@ -75,7 +75,7 @@ export default class NoteService {
   /**
    * Create a new note
    */
-  createNote(title, content, category, color, isCompleted = false, dueDate = null, priority = 'medium') {
+  createNote(title, content, category, color, isCompleted = false, dueDate = null, priority = 'medium', reminder = null) {
     // Using the safe UUID generator to avoid errors
     const noteId = safeUuidGenerator();
     console.log("Generated UUID:", noteId);
@@ -96,6 +96,7 @@ export default class NoteService {
           isCompleted: isCompleted,
           dueDate: dueDate,
           priority: priority,
+          reminder: reminder,
         });
       });
       console.log("Note created successfully with ID:", noteId);
@@ -111,7 +112,7 @@ export default class NoteService {
    * Create a note with a predefined ID
    * If the ID is not in UUID format, it will be converted to UUID format first
    */
-  createNoteWithId(noteId, title, content, category = 'Notes', color = '#4F46E5', createdAt = new Date(), isCompleted = false) {
+  createNoteWithId(noteId, title, content, category = 'Notes', color = '#4F46E5', createdAt = new Date(), isCompleted = false, dueDate = null, priority = 'medium', reminder = null) {
     // Check if noteId is a valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(noteId)) {
@@ -160,7 +161,10 @@ export default class NoteService {
         color: color,
         isDeleted: false,
         isSynced: false,
-        isCompleted: isCompleted
+        isCompleted: isCompleted,
+        dueDate: dueDate,
+        priority: priority,
+        reminder: reminder
       });
     });
     
@@ -187,6 +191,7 @@ export default class NoteService {
       if (updates.isCompleted !== undefined) note.isCompleted = updates.isCompleted;
       if (updates.dueDate !== undefined) note.dueDate = updates.dueDate;
       if (updates.priority !== undefined) note.priority = updates.priority;
+      if (updates.reminder !== undefined) note.reminder = updates.reminder;
       
       // Always update these fields
       note.updatedAt = new Date();
@@ -393,6 +398,111 @@ export default class NoteService {
       .filtered('userId == $0 && isDeleted == false && isCompleted == false && dueDate != null && dueDate <= $1', 
                 this.userId, thresholdDate)
       .sorted('dueDate');
+  }
+
+  /**
+   * Get notes with reminders set
+   */
+  getNotesWithReminders() {
+    return this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && reminder != null', this.userId)
+      .sorted('updatedAt', true);
+  }
+
+  /**
+   * Get notes with upcoming reminders
+   * @param {number} minutesThreshold - Number of minutes to consider "upcoming"
+   */
+  getUpcomingReminders(minutesThreshold = 30) {
+    const now = new Date();
+    const notes = this.realm.objects('Note')
+      .filtered('userId == $0 && isDeleted == false && isCompleted == false && reminder != null', this.userId);
+    
+    // Filter notes with reminders in the specified threshold
+    return notes.filter(note => {
+      if (!note.reminder) return false;
+      
+      // Parse the reminder value
+      if (note.reminder.startsWith('in ')) {
+        // "in X minutes" format
+        const minutesMatch = note.reminder.match(/in (\d+) minutes/);
+        if (minutesMatch) {
+          const minutes = parseInt(minutesMatch[1]);
+          // Check if reminder is within the threshold
+          return minutes <= minutesThreshold;
+        }
+      } else if (note.reminder.startsWith('at ')) {
+        // "at HH:MM" format
+        const timeMatch = note.reminder.match(/at (\d{2}):(\d{2})/);
+        if (timeMatch) {
+          const hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          
+          // Create a Date object for the reminder time today
+          const reminderTime = new Date();
+          reminderTime.setHours(hours, minutes, 0, 0);
+          
+          // Check if the reminder time is within the threshold
+          const diffMs = reminderTime.getTime() - now.getTime();
+          const diffMinutes = diffMs / (1000 * 60);
+          return diffMinutes >= 0 && diffMinutes <= minutesThreshold;
+        }
+      } else if (note.reminder.startsWith('on ')) {
+        // "on YYYY-MM-DD" format
+        const dateMatch = note.reminder.match(/on (\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) {
+          const reminderDate = new Date(dateMatch[1]);
+          
+          // Check if the reminder date is today
+          const today = new Date();
+          return reminderDate.getDate() === today.getDate() &&
+                 reminderDate.getMonth() === today.getMonth() &&
+                 reminderDate.getFullYear() === today.getFullYear();
+        }
+      }
+      
+      return false;
+    }).sorted('updatedAt', true);
+  }
+
+  /**
+   * Set reminder for a note
+   */
+  setReminder(noteId, reminderValue) {
+    const note = this.getNoteById(noteId);
+    
+    if (!note) {
+      console.error(`Note with ID ${noteId} not found`);
+      return false;
+    }
+    
+    this.realm.write(() => {
+      note.reminder = reminderValue;
+      note.updatedAt = new Date();
+      note.isSynced = false; // Mark for sync
+    });
+    
+    return true;
+  }
+
+  /**
+   * Clear reminder for a note
+   */
+  clearReminder(noteId) {
+    const note = this.getNoteById(noteId);
+    
+    if (!note) {
+      console.error(`Note with ID ${noteId} not found`);
+      return false;
+    }
+    
+    this.realm.write(() => {
+      note.reminder = null;
+      note.updatedAt = new Date();
+      note.isSynced = false; // Mark for sync
+    });
+    
+    return true;
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
-import { Platform, Dimensions, useWindowDimensions, View, Text, StyleSheet } from "react-native"
+import { Platform, Dimensions, useWindowDimensions, View, Text, StyleSheet, Pressable } from "react-native"
 import { useTheme } from "@/components/ThemeContext"
 import { NavigationBarThemeHandler } from "@/components/NavigationBarThemeHandeler"
 import React, { useEffect, useState } from "react"
@@ -242,61 +242,64 @@ export default function TabLayout() {
     )
   }
 
-  // For phone or tablet in portrait, use the original bottom tabs
-  return (
-    <>
-      <NavigationBarThemeHandler />
+// For phone or tablet in portrait, use the original bottom tabs
+return (
+  <>
+    <NavigationBarThemeHandler />
 
-      <Tabs
-        screenOptions={{
-          tabBarStyle: {
-            backgroundColor: themeColors.tabBackground,
-            borderTopWidth: 0.3,
-            borderTopColor: themeColors.tabBorder,
-            height: Platform.OS === "ios" ? 88 : 78,
-            paddingBottom: Platform.OS === "ios" ? 28 : 15,
-            paddingTop: 15,
-            // Make sure the tab bar is positioned above the navigation bar on Android
-            ...(Platform.OS === "android" && {
-              position: "absolute",
-              zIndex: 1,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              elevation: 8,
-            }),
-          },
-          tabBarActiveTintColor: themeColors.activeTintColor,
-          tabBarInactiveTintColor: themeColors.inactiveTintColor,
-          headerStyle: {
-            backgroundColor: themeColors.headerBackground,
-          },
-          headerShown: false,
-          headerTitleStyle: {
-            fontWeight: "600",
-            fontSize: 17,
-            color: themeColors.headerTintColor,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: "500",
-          },
-        }}
-      >
-        {tabConfig.map((tab) => (
-          <Tabs.Screen
-            key={tab.name}
-            name={tab.name}
-            options={{
-              title: tab.title,
-              headerTitle: tab.title,
-              tabBarIcon: ({ size, color }) => (
-                <Ionicons name={tab.icon as any} size={size} color={color} />
-              ),
-            }}
-          />
-        ))}
-      </Tabs>
-    </>
-  )
+    <Tabs
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: themeColors.tabBackground,
+          borderTopWidth: 0.3,
+          borderTopColor: themeColors.tabBorder,
+          height: Platform.OS === "ios" ? 88 : 78,
+          paddingBottom: Platform.OS === "ios" ? 28 : 15,
+          paddingTop: 15,
+          // Make sure the tab bar is positioned above the navigation bar on Android
+          ...(Platform.OS === "android" && {
+            position: "absolute",
+            zIndex: 1,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            elevation: 8,
+          }),
+        },
+        tabBarActiveTintColor: themeColors.activeTintColor,
+        tabBarInactiveTintColor: themeColors.inactiveTintColor,
+        headerStyle: {
+          backgroundColor: themeColors.headerBackground,
+        },
+        headerShown: false,
+        headerTitleStyle: {
+          fontWeight: "600",
+          fontSize: 17,
+          color: themeColors.headerTintColor,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "500",
+        },
+        tabBarButton: (props) => (
+          <Pressable {...props} android_ripple={{ color: 'transparent' }} />
+        ),
+      }}
+    >
+      {tabConfig.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+            headerTitle: tab.title,
+            tabBarIcon: ({ size, color }) => (
+              <Ionicons name={tab.icon as any} size={size} color={color} />
+            ),
+          }}
+        />
+      ))}
+    </Tabs>
+  </>
+)
 }

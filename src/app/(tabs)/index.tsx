@@ -259,7 +259,7 @@ const DatePickerModal = ({visible, onClose, onSelectDate, currentDate, theme}) =
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
       <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
         <View style={[styles.modalContent, {backgroundColor: theme.cardBackground}]}>
           <View style={styles.modalHeader}>
@@ -326,7 +326,7 @@ const PrioritySelectionModal = ({visible, onClose, onSelectPriority, currentPrio
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
       <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
         <View style={[styles.modalContent, {backgroundColor: theme.cardBackground}]}>
           <View style={styles.modalHeader}>
@@ -449,7 +449,7 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
       <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
         <View style={[styles.modalContent, {backgroundColor: theme.cardBackground}]}>
           <View style={styles.modalHeader}>
@@ -615,7 +615,7 @@ const FAB = memo(({theme, isLandscape, isOnline, onCreateNote}) => {
       <View style={styles.fabIcon}>
         <Ionicons name={isOnline ? 'mic' : 'create'} size={24} color="#ffffff" />
       </View>
-      <Text style={styles.fabText}>{isOnline ? 'Create Task' : 'Type Task'}</Text>
+      <Text style={styles.fabText}>{isOnline ? 'Create' : 'Type'}</Text>
     </Pressable>
   )
 })
@@ -1175,15 +1175,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6
   },
 
-  addMetaText: {
-    fontSize: 10,
-    marginLeft: 2
-  },
 
-  rightFooterSection: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
 
   priorityPill: {
     width: 24,
@@ -1208,10 +1200,6 @@ const styles = StyleSheet.create({
     padding: 4
   },
 
-  dueDate: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
   dueDateIcon: {
     marginRight: 4
   },
@@ -1236,17 +1224,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     marginRight: 10
-  }
-  priorityText: {
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  actionIcons: {
-    flexDirection: 'row',
-    gap: 12
-  },
-  iconButton: {
-    padding: 4
   },
   metaContainer: {
     flexDirection: 'column',

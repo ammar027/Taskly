@@ -477,7 +477,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 1,
   },
   inputIcon: {
     paddingLeft: 16,

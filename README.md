@@ -20,6 +20,6 @@ Taskly is a voice-powered task management app built with **React Native**, using
 ## 📦 Installation  
 Clone the repository and install dependencies:  
 ```sh
-git clone https://github.com/yourusername/taskly.git  
+git clone https://github.com/ammar027/Taskly.git 
 cd taskly  
 npm install

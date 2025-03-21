@@ -1,9 +1,9 @@
 import { Redirect } from "expo-router"
 import { useEffect, useState } from "react"
-import * as NavigationBar from "expo-navigation-bar"
+import { Platform, View, ActivityIndicator } from "react-native"
+import NavigationBar from "@/utils/navigation-bar"
 import { useTheme, ThemeMode } from "@/components/ThemeContext"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { View, ActivityIndicator } from "react-native"
 import { useAuth } from "@/components/AuthContext"
 
 const WELCOME_SHOWN_KEY = "welcome_screen_shown"
@@ -14,25 +14,27 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(true)
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false)
 
-  // Effect for navigation bar theming
+  // Effect for navigation bar theming (only on native platforms)
   useEffect(() => {
-    const updateNavBar = async () => {
-      try {
-        await NavigationBar.setBackgroundColorAsync(isDarkMode ? "rgb(30, 30, 30)" : "#ffffff")
-        await NavigationBar.setButtonStyleAsync(isDarkMode ? "light" : "dark")
-        await NavigationBar.setVisibilityAsync("visible")
-        await NavigationBar.setPositionAsync("relative")
-      } catch (error) {
-        console.error("Error setting navigation bar color:", error)
+    if (Platform.OS !== 'web') {
+      const updateNavBar = async () => {
+        try {
+          await NavigationBar.setBackgroundColorAsync(isDarkMode ? "rgb(30, 30, 30)" : "#ffffff")
+          await NavigationBar.setButtonStyleAsync(isDarkMode ? "light" : "dark")
+          await NavigationBar.setVisibilityAsync("visible")
+          await NavigationBar.setPositionAsync("relative")
+        } catch (error) {
+          console.error("Error setting navigation bar color:", error)
+        }
       }
-    }
 
-    updateNavBar()
+      updateNavBar()
+    }
   }, [isDarkMode])
 
-  // Listen for system theme changes when using system theme
+  // Listen for system theme changes when using system theme (only on native platforms)
   useEffect(() => {
-    if (theme === ThemeMode.SYSTEM) {
+    if (theme === ThemeMode.SYSTEM && Platform.OS !== 'web') {
       const subscription = NavigationBar.addVisibilityListener(() => {
         const updateNavBarOnVisibilityChange = async () => {
           try {
@@ -48,6 +50,9 @@ export default function Index() {
 
       return () => subscription.remove()
     }
+    
+    // Empty return for web platform to satisfy the useEffect hook
+    return () => {};
   }, [theme, isDarkMode])
 
   // Check if welcome screen has been shown
@@ -82,11 +87,6 @@ export default function Index() {
     )
   }
 
-  // // First time user flow: Welcome -> Auth -> App
-  // if (!hasSeenWelcome) {
-  //   return <Redirect href="/welcome" />
-  // }
-
   // Defer to AuthContext for authentication state
   // If offline with pendingSessionValidation, assume user is authenticated
   const isAuthenticated = !!user || (!isOnline && pendingSessionValidation)
@@ -96,13 +96,15 @@ export default function Index() {
     return <Redirect href="/auth?mode=signin" />
   }
 
-  // // Authenticated user: Go to main app
-  // return <Redirect href="/record/new" />
+  // Authenticated user flow based on connectivity
   if (isOnline) {
-    return <Redirect href="/record/new" />
+    return <Redirect href="/(tabs)" />
   }
 
   if (!isOnline) {
     return <Redirect href="/(tabs)" />
   }
+  
+  // Default fallback (should never reach here)
+  return <Redirect href="/(tabs)" />
 }

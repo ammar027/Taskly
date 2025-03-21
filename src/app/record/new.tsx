@@ -428,7 +428,7 @@ const NewTask = () => {
     if (taskData.title && (field === 'description' || field === 'category' || field === 'dueDate' || field === 'priority')) {
       // If we have title and one of these important fields, suggest saving
       setTimeout(() => {
-        dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready to save. Say "save task" to finish.'});
+        dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready to save. Say "save task" to finish..'});
       }, 1000);
     }
     
@@ -729,6 +729,27 @@ const NewTask = () => {
     dispatch({type: 'SET_AUTO_SAVING', payload: true})
   }
 
+  const exitApp = () => {
+    if (Platform.OS === 'web') {
+      console.log('Exit app called in web - closing window')
+      try {
+        window.close()
+        // Fallback message if browser blocks window.close()
+        setTimeout(() => {
+          console.log('Browser may have blocked window.close(). Please close this tab manually.')
+          // You could redirect to a different page instead
+          // window.location.href = '/dashboard'
+        }, 300)
+      } catch (error) {
+        console.error('Error closing window:', error)
+      }
+    } else {
+      // Import dynamically only on native platforms
+      const RNExitApp = require('react-native-exit-app').default
+      RNExitApp.exitApp()
+    }
+  }
+
   // Save task and navigate
   const saveTaskAndNavigate = () => {
     try {
@@ -800,7 +821,7 @@ const NewTask = () => {
           }
         })
       } else {
-        setTimeout(() => RNExitApp.exitApp(), 1000)
+        setTimeout(() => exitApp(), 1000)
       }
 
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task saved successfully'})

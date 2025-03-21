@@ -1,5 +1,5 @@
 import { Stack } from "expo-router"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { StatusBar } from "expo-status-bar"
 import * as Font from "expo-font"
 import { Ionicons } from "@expo/vector-icons"
@@ -14,8 +14,11 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useOrientationControl } from "@/components/OrientationControl"
 import { RealmProvider } from "@/components/RealmContext"
 import { AuthProvider, useAuth } from "@/components/AuthContext"
-import SyncService from "@/services/SyncService"
 import { NoteSchema } from "@/models/NoteSchema"
+import { supabase } from "@/lib/supabase"
+import { useRealm } from "@/components/RealmContext"
+import { createNoteService } from "@/services/NoteServiceFactory"
+import PlatformSyncService from "@/services/SyncServiceFactory"
 
 // Auth-aware router wrapper component
 const AuthAwareRouter = ({ children }) => {
@@ -62,18 +65,34 @@ const AuthAwareRouter = ({ children }) => {
 
   return (
     <>
+      <OfflineBanner />
       {children}
     </>
   )
 }
 
-// SyncWrapper component that conditionally renders SyncService
+// SyncWrapper component that conditionally renders the platform-specific SyncService
 const SyncWrapper = ({ children }) => {
   const { user, isLoading, isOnline } = useAuth()
+  const realm = useRealm()
+  const noteServiceRef = useRef(null)
+  
+  // Initialize the note service
+  useEffect(() => {
+    if (user && !noteServiceRef.current) {
+      noteServiceRef.current = createNoteService(realm, user.id, supabase)
+    }
+  }, [user, realm])
 
   return (
     <>
-      {user && !isLoading && isOnline && <SyncService userId={user.id} />}
+      {user && !isLoading && (
+        <PlatformSyncService 
+          userId={user.id} 
+          noteService={noteServiceRef.current}
+          isOnline={isOnline}
+        />
+      )}
       {children}
     </>
   )

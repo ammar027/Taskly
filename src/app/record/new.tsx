@@ -194,7 +194,7 @@ const NewTask = () => {
         payload: {title: params.content, priority: params.priority || ''}
       })
       dispatch({type: 'SET_TRANSCRIPT', payload: params.content})
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
       if (params.autoStart === 'true') {
         setTimeout(() => saveTaskAndNavigate(), 1000)
@@ -237,7 +237,7 @@ const NewTask = () => {
       if (validationIssues.length > 0) {
         dispatch({type: 'SET_AUTO_SAVING', payload: false})
         dispatch({type: 'SET_CURRENT_ACTION', payload: `Please fix: ${validationIssues.join(', ')}`})
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+        Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
       } else {
         saveTaskAndNavigate()
       }
@@ -291,13 +291,13 @@ const NewTask = () => {
   useSpeechRecognitionEvent('start', () => {
     dispatch({type: 'SET_RECOGNIZING', payload: true})
     dispatch({type: 'SET_RECORDING_START_TIME', payload: Date.now()})
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)
+    Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)
     dispatch({type: 'SET_CURRENT_ACTION', payload: 'Listening...'})
   })
 
   useSpeechRecognitionEvent('end', () => {
     dispatch({type: 'SET_RECOGNIZING', payload: false})
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     if (transcript) {
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Processing your input...'})
@@ -330,7 +330,7 @@ const NewTask = () => {
 
     // When important fields are filled, provide haptic feedback and visual cue
     if (['title', 'dueDate', 'category', 'priority'].includes(field)) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
       // Display a success message
       dispatch({
@@ -628,7 +628,7 @@ const NewTask = () => {
   // Voice command processor
   const processVoiceCommand = command => {
     if (handleVoiceCommand(command)) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       Toast.show({
         type: 'success',
         text1: 'Command recognized',
@@ -670,7 +670,7 @@ const NewTask = () => {
   const handleStart = async () => {
     const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
     if (!result.granted) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Microphone permission denied'})
       return
     }
@@ -693,7 +693,7 @@ const NewTask = () => {
   // Stop speech recognition
   const handleStop = () => {
     ExpoSpeechRecognitionModule.stop()
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     dispatch({type: 'SET_CURRENT_ACTION', payload: 'Processing...'})
   }
 
@@ -718,7 +718,7 @@ const NewTask = () => {
   const finishTask = () => {
     dispatch({type: 'SET_TRANSCRIPT', payload: ''})
     dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task ready to save'})
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     dispatch({
       type: 'SET_TASK_DATA',
@@ -825,11 +825,11 @@ const NewTask = () => {
       }
 
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task saved successfully'})
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     } catch (error) {
       console.error('Error preparing task data:', error)
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Error saving task'})
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     }
   }
 

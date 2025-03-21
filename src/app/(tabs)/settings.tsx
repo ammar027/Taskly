@@ -74,7 +74,7 @@ export default function SettingsScreen() {
     }
     
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
     setThemeKey(prevKey => prevKey + 1); // Force re-render
@@ -84,14 +84,14 @@ export default function SettingsScreen() {
   const handleNotificationToggle = () => {
     setPushNotifications(prev => !prev);
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
   const handlePrivacyPolicy = async () => {
     try {
       if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       await WebBrowser.openBrowserAsync('https://taskly-pvc-p.vercel.app/');
     } catch (error) {
@@ -101,7 +101,7 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => {
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     
     Alert.alert(

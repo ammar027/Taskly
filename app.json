@@ -43,15 +43,16 @@
     },
     "web": {
       "favicon": "./assets/icons/icon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "notification": {
+        "vapidPublicKey": "BIDySAzyl4p3aij9V8HWr69g4udJGuaIwDtxC6sBLkGDiBgbEGuk12Yeb9Cvpc22vMLaVZnmRYPFqOOEvDXVqRM"
+      }
     },
     "plugins": [
       "expo-localization",
       "expo-font",
       "expo-audio",
-      [
-        "react-native-edge-to-edge"
-      ],
+      ["react-native-edge-to-edge"],
       [
         "expo-splash-screen",
         {

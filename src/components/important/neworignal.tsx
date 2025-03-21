@@ -115,7 +115,7 @@ const NewTask = () => {
   // Speech recognition event handlers
   useSpeechRecognitionEvent("start", () => {
     setRecognizing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCurrentAction("Listening...");
   }); 
   useSpeechRecognitionEvent("end", () => {
@@ -173,7 +173,7 @@ const NewTask = () => {
 
   const handleStop = () => {
     ExpoSpeechRecognitionModule.stop();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCurrentAction("Stopping recognition...");
   };
 

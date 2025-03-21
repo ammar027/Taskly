@@ -17,6 +17,8 @@ import DeletedNotesModal from '@/components/Modals/DeletedNotes'
 import CreateNoteModal from '@/components/Modals/CreateNoteModal'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import {TextInput} from 'react-native-gesture-handler'
+import { createNoteService } from '@/services/NoteServiceFactory'
+import { supabase } from '@/lib/supabase'
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
@@ -221,7 +223,7 @@ const NoteCard = memo(({item, index, onDelete, onUpdateCategory, onToggleComplet
         </View>
       </AnimatedPressable>
 
-      <CategorySelectionModal visible={categoryModalVisible} onClose={() => setCategoryModalVisible(false)} onSelectCategory={handleUpdateCategory} currentCategory={item.category} theme={theme} />
+      {/* <CategorySelectionModal visible={categoryModalVisible} onClose={() => setCategoryModalVisible(false)} onSelectCategory={handleUpdateCategory} currentCategory={item.category} theme={theme} /> */}
       <DatePickerModal visible={datePickerVisible} onClose={() => setDatePickerVisible(false)} onSelectDate={handleUpdateDueDate} currentDate={item.dueDate} theme={theme} />
       <ReminderPickerModal visible={reminderPickerVisible} onClose={() => setReminderPickerVisible(false)} onSelectReminder={handleUpdateReminder} currentReminder={item.reminder} theme={theme} />
       <PrioritySelectionModal visible={priorityModalVisible} onClose={() => setPriorityModalVisible(false)} onSelectPriority={handleUpdatePriority} currentPriority={item.priority} theme={theme} />
@@ -654,9 +656,11 @@ export default function NotesScreen() {
   // Initialize note service when realm and user are available
   useEffect(() => {
     if (realm && user) {
-      noteService.current = new NoteService(realm, user.id)
+      // Use the factory pattern to get the appropriate note service
+      const service = createNoteService(realm, user.id, supabase);
+      noteService.current = service;
     }
-  }, [realm, user])
+  }, [realm, user]);
 
   useEffect(() => {
     navigationCount.current += 1
@@ -672,296 +676,319 @@ export default function NotesScreen() {
   }, [realm, user])
 
   // Function to load notes from Realm
-  const loadNotes = useCallback(() => {
-    if (!realm || !user || !noteService.current) return
+  const loadNotes = useCallback(async () => {
+    if (!noteService.current || !user) return;
 
+    setIsLoading(true);
     try {
-      console.log('Fetching notes from Realm...')
-      const allNotes = noteService.current.getAllNotes()
+      console.log('Fetching notes...');
+      // Use await since the web implementation might be async
+      const allNotes = await noteService.current.getAllNotes();
 
-      // Convert Realm objects to plain objects for React state
-      // In the loadNotes function:
-      const plainNotes = Array.from(allNotes).map(note => ({
-        id: note.id,
-        title: note.title || 'Untitled',
-        content: note.content,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt,
-        category: note.category || 'Tasks',
-        color: note.color || '#4F46E5',
-        isSynced: note.isSynced,
-        isCompleted: note.isCompleted || false,
-        dueDate: note.dueDate || null,
-        priority: note.priority || 'medium',
-        reminder: note.reminder || null
-      }))
+      // Convert notes to plain objects for React state
+      // Note: Structure might differ slightly between web and native implementations
+      const plainNotes = Array.isArray(allNotes) 
+        ? allNotes // If already an array (web implementation might return this)
+        : Array.from(allNotes).map(note => ({
+            id: note.id,
+            title: note.title || 'Untitled',
+            content: note.content,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+            category: note.category || 'Tasks',
+            color: note.color || '#4F46E5',
+            isSynced: note.isSynced,
+            isCompleted: note.isCompleted || false,
+            dueDate: note.dueDate || null,
+            priority: note.priority || 'medium',
+            reminder: note.reminder || null
+          }));
 
-      console.log('Loaded notes from Realm:', plainNotes.length)
-      setNotes(plainNotes)
+      console.log('Loaded notes:', plainNotes.length);
+      setNotes(plainNotes);
     } catch (error) {
-      console.error('Error loading notes from Realm:', error)
+      console.error('Error loading notes:', error);
     } finally {
-      setIsLoading(false)
-      setRefreshing(false)
+      setIsLoading(false);
+      setRefreshing(false);
     }
-  }, [realm, user])
+  }, [user]);
+
+
+  useEffect(() => {
+    if (noteService.current && user) {
+      loadNotes();
+    }
+  }, [noteService.current, user, loadNotes]);
+  
+  useEffect(() => {
+    if (!noteService.current || !user) return;
+    
+    // For native platforms, use Realm listeners
+    if (Platform.OS !== 'web' && realm) {
+      const notesResults = realm.objects('Note').filtered('userId == $0 && isDeleted == false', user.id);
+      
+      const listener = (collection, changes) => {
+        // Reload notes when changes are detected
+        loadNotes();
+      };
+      
+      // Add the listener
+      notesResults.addListener(listener);
+      
+      // Remove the listener when the component unmounts
+      return () => {
+        if (notesResults.isValid()) {
+          notesResults.removeListener(listener);
+        }
+      };
+    } 
+    // For web platform, set up a different approach
+    else if (Platform.OS === 'web') {
+      // Web uses a different approach - changes are handled by SyncServiceWeb
+      // Set up a simple interval to refresh data periodically as a fallback
+      const refreshInterval = setInterval(() => {
+        if (isOnline) {
+          loadNotes();
+        }
+      }, 30000); // Refresh every 30 seconds
+      
+      return () => {
+        clearInterval(refreshInterval);
+      };
+    }
+  }, [realm, user, loadNotes, isOnline]);
+
 
   const onRefresh = useCallback(() => {
-    console.log('Refreshing notes...')
-    setRefreshing(true)
-    loadNotes()
-  }, [loadNotes])
+    console.log('Refreshing notes...');
+    setRefreshing(true);
+    loadNotes();
+  }, [loadNotes]);
 
-  // Handle new note creation from params
-  // Handle new note creation from params
   // Handle new note creation from params
   useEffect(() => {
     if (params?.newNote && !isLoading && noteService.current) {
-      console.log('Processing new note from params...')
+      console.log('Processing new note from params...');
       try {
-        const noteData = JSON.parse(params.newNote)
-        console.log('Parsed note data:', noteData) // Debug log
+        const noteData = JSON.parse(params.newNote);
+        console.log('Parsed note data:', noteData);
 
         // Only save the note if it hasn't been saved already
         if (!noteData.alreadySaved) {
           // Save the note with all fields
-          noteService.current.createNote(noteData.title, noteData.content, noteData.category || 'Tasks', noteData.color || '#059669', noteData.isCompleted || false, noteData.dueDate || null, noteData.priority || 'medium')
+          noteService.current.createNote(
+            noteData.title, 
+            noteData.content, 
+            noteData.category || 'Tasks', 
+            noteData.color || '#059669', 
+            noteData.isCompleted || false, 
+            noteData.dueDate || null, 
+            noteData.priority || 'medium'
+          );
         }
 
         // Refresh notes list regardless of whether a new note was created
-        loadNotes()
+        loadNotes();
       } catch (error) {
-        console.error('Error processing new note:', error)
+        console.error('Error processing new note:', error);
       }
     }
-  }, [params?.newNote, params?.timestamp, isLoading, loadNotes])
+  }, [params?.newNote, params?.timestamp, isLoading, loadNotes]);
 
-  const handleUpdateDueDate = useCallback(
-    (noteId, dueDate) => {
-      if (!noteService.current) return
 
-      console.log('Updating due date for note:', noteId, dueDate)
+  const handleUpdateDueDate = useCallback((noteId, dueDate) => {
+    if (!noteService.current) return;
 
-      try {
-        // Update the note in Realm
-        const updates = {
-          dueDate: dueDate
-        }
+    console.log('Updating due date for note:', noteId, dueDate);
 
-        const success = noteService.current.updateNote(noteId, updates)
+    try {
+      // Update the note
+      const updates = { dueDate: dueDate };
+      const success = noteService.current.updateNote(noteId, updates);
 
-        if (success) {
-          console.log('Note due date updated successfully')
-          // Refresh the notes list
-          loadNotes()
-        } else {
-          console.log('Failed to update note due date, ID not found')
-        }
-      } catch (error) {
-        console.error('Error updating note due date:', error)
-        Alert.alert('Error', 'Failed to update due date')
+      if (success) {
+        console.log('Note due date updated successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to update note due date, ID not found');
       }
-    },
-    [loadNotes]
-  )
+    } catch (error) {
+      console.error('Error updating note due date:', error);
+      Alert.alert('Error', 'Failed to update due date');
+    }
+  }, [loadNotes]);
 
-  const handleUpdateReminder = useCallback(
-    (noteId, reminder) => {
-      if (!noteService.current) return
+  const handleUpdateReminder = useCallback((noteId, reminder) => {
+    if (!noteService.current) return;
 
-      console.log('Updating reminder for note:', noteId, reminder)
+    console.log('Updating reminder for note:', noteId, reminder);
 
-      try {
-        // Use the appropriate method from NoteService
-        let success
-        if (reminder) {
-          success = noteService.current.setReminder(noteId, reminder)
-        } else {
-          success = noteService.current.clearReminder(noteId)
-        }
-
-        if (success) {
-          console.log('Note reminder updated successfully')
-          // Refresh the notes list
-          loadNotes()
-        } else {
-          console.log('Failed to update note reminder, ID not found')
-        }
-      } catch (error) {
-        console.error('Error updating note reminder:', error)
-        Alert.alert('Error', 'Failed to update reminder')
+    try {
+      let success;
+      if (reminder) {
+        success = noteService.current.setReminder(noteId, reminder);
+      } else {
+        success = noteService.current.clearReminder(noteId);
       }
-    },
-    [loadNotes]
-  )
 
-  const handleUpdatePriority = useCallback(
-    (noteId, priority) => {
-      if (!noteService.current) return
-
-      console.log('Updating priority for note:', noteId, priority)
-
-      try {
-        // Priority should be updated differently than reminder
-        let success
-
-        if (priority) {
-          // Should pass an object with priority property, not just priority value
-          success = noteService.current.updateNote(noteId, {priority})
-        } else {
-          // This should call clearPriority, not clearReminder
-          success = noteService.current.clearPriority(noteId)
-        }
-
-        if (success) {
-          console.log('Note priority updated successfully')
-          loadNotes()
-        } else {
-          console.log('Failed to update note priority, ID not found')
-        }
-      } catch (error) {
-        console.error('Error updating note priority:', error)
-        Alert.alert('Error', 'Failed to update priority')
+      if (success) {
+        console.log('Note reminder updated successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to update note reminder, ID not found');
       }
-    },
-    [loadNotes]
-  )
+    } catch (error) {
+      console.error('Error updating note reminder:', error);
+      Alert.alert('Error', 'Failed to update reminder');
+    }
+  }, [loadNotes]);
+
+  const handleUpdatePriority = useCallback((noteId, priority) => {
+    if (!noteService.current) return;
+
+    console.log('Updating priority for note:', noteId, priority);
+
+    try {
+      let success;
+      if (priority) {
+        success = noteService.current.updateNote(noteId, { priority });
+      } else {
+        success = noteService.current.clearPriority(noteId);
+      }
+
+      if (success) {
+        console.log('Note priority updated successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to update note priority, ID not found');
+      }
+    } catch (error) {
+      console.error('Error updating note priority:', error);
+      Alert.alert('Error', 'Failed to update priority');
+    }
+  }, [loadNotes]);
 
   // Handle note deletion
-  const handleDeleteNote = useCallback(
-    noteId => {
-      if (!noteService.current) return
+  const handleDeleteNote = useCallback((noteId) => {
+    if (!noteService.current) return;
 
-      console.log('Deleting note with ID:', noteId)
+    console.log('Deleting note with ID:', noteId);
 
-      try {
-        // Delete the note in Realm (soft delete)
-        const success = noteService.current.deleteNote(noteId)
+    try {
+      // Delete the note (soft delete)
+      const success = noteService.current.deleteNote(noteId);
 
-        if (success) {
-          console.log('Note deleted successfully')
-          // Refresh the notes list
-          loadNotes()
-        } else {
-          console.log('Failed to delete note, ID not found')
-        }
-      } catch (error) {
-        console.error('Error deleting note:', error)
-        Alert.alert('Error', 'Failed to delete note')
+      if (success) {
+        console.log('Note deleted successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to delete note, ID not found');
       }
-    },
-    [loadNotes]
-  )
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      Alert.alert('Error', 'Failed to delete note');
+    }
+  }, [loadNotes]);
 
   // Handle category updates
-  const handleUpdateCategory = useCallback(
-    (noteId, selectedCategory) => {
-      if (!noteService.current || !noteId) return
+  const handleUpdateCategory = useCallback((noteId, selectedCategory) => {
+    if (!noteService.current || !noteId) return;
 
-      console.log('Updating category for note:', noteId, selectedCategory)
+    console.log('Updating category for note:', noteId, selectedCategory);
 
-      try {
-        // Get the note from Realm
-        const note = noteService.current.getNoteById(noteId)
+    try {
+      // Use noteService to update category instead of direct Realm operations
+      const success = noteService.current.updateNote(noteId, {
+        category: selectedCategory.name,
+        color: selectedCategory.color
+      });
 
-        if (note) {
-          // Update the note in Realm
-          realm.write(() => {
-            note.category = selectedCategory.name
-            note.color = selectedCategory.color
-            note.updatedAt = new Date()
-            note.isSynced = false // Mark for sync
-          })
-
-          console.log('Note category updated successfully')
-          // Refresh the notes list
-          loadNotes()
-        } else {
-          console.log('Failed to update note category, ID not found')
-        }
-      } catch (error) {
-        console.error('Error updating note category:', error)
-        Alert.alert('Error', 'Failed to update category')
+      if (success) {
+        console.log('Note category updated successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to update note category, ID not found');
       }
-    },
-    [realm, loadNotes]
-  )
-
-  const handleToggleCompletion = useCallback(
-    (noteId, isCompleted) => {
-      if (!noteService.current) return
-
-      console.log('Toggling completion for note:', noteId, isCompleted)
-
-      try {
-        // Use the toggleCompletion method from NoteService
-        const success = noteService.current.toggleCompletion(noteId, isCompleted)
-
-        if (success) {
-          console.log('Note completion status updated successfully')
-          // Refresh the notes list
-          loadNotes()
-        } else {
-          console.log('Failed to update note completion status, ID not found')
-        }
-      } catch (error) {
-        console.error('Error updating note completion status:', error)
-        Alert.alert('Error', 'Failed to update completion status')
-      }
-    },
-    [loadNotes]
-  )
-
-  const handleSaveTypedNote = useCallback(
-    noteData => {
-      if (!noteService.current) return
-
-      try {
-        // Create the note in Realm
-        const noteId = noteService.current.createNote(noteData.title, noteData.content, noteData.category || 'Tasks', noteData.color || '#059669', noteData.isCompleted || false, noteData.dueDate || null, noteData.priority || 'medium')
-
-        console.log('Created new typed note in Realm with ID:', noteId)
-
-        // Refresh the notes list
-        loadNotes()
-      } catch (error) {
-        console.error('Error creating typed note:', error)
-        Alert.alert('Error', 'Failed to create note')
-      }
-    },
-    [loadNotes]
-  )
-
-  // Set up Realm change listener
-  useEffect(() => {
-    if (!realm || !user) return
-
-    // Subscribe to changes in the Note objects
-    const notesResults = realm.objects('Note').filtered('userId == $0 && isDeleted == false', user.id)
-
-    const listener = (collection, changes) => {
-      // Reload notes when changes are detected
-      loadNotes()
+    } catch (error) {
+      console.error('Error updating note category:', error);
+      Alert.alert('Error', 'Failed to update category');
     }
+  }, [loadNotes]);
 
-    // Add the listener
-    notesResults.addListener(listener)
+  const handleToggleCompletion = useCallback((noteId, isCompleted) => {
+    if (!noteService.current) return;
 
-    // Remove the listener when the component unmounts
-    return () => {
-      if (notesResults.isValid()) {
-        notesResults.removeListener(listener)
+    console.log('Toggling completion for note:', noteId, isCompleted);
+
+    try {
+      const success = noteService.current.toggleCompletion(noteId, isCompleted);
+
+      if (success) {
+        console.log('Note completion status updated successfully');
+        loadNotes();
+      } else {
+        console.log('Failed to update note completion status, ID not found');
       }
+    } catch (error) {
+      console.error('Error updating note completion status:', error);
+      Alert.alert('Error', 'Failed to update completion status');
     }
-  }, [realm, user, loadNotes])
+  }, [loadNotes]);
 
-  const renderItem = useCallback(({item, index}) => <NoteCard item={item} index={index} onDelete={handleDeleteNote} onUpdateCategory={handleUpdateCategory} onToggleCompletion={handleToggleCompletion} onUpdateDueDate={handleUpdateDueDate} onUpdateReminder={handleUpdateReminder} onUpdatePriority={handleUpdatePriority} theme={theme} isLandscape={isLandscape} />, [handleDeleteNote, handleUpdateCategory, handleToggleCompletion, handleUpdateDueDate, handleUpdateReminder, handleUpdatePriority, theme, isLandscape])
 
-  const keyExtractor = useCallback(item => item.id, [])
+  const handleSaveTypedNote = useCallback((noteData) => {
+    if (!noteService.current) return;
+
+    try {
+      // Create the note
+      const noteId = noteService.current.createNote(
+        noteData.title, 
+        noteData.content, 
+        noteData.category || 'Tasks', 
+        noteData.color || '#059669', 
+        noteData.isCompleted || false, 
+        noteData.dueDate || null, 
+        noteData.priority || 'medium'
+      );
+
+      console.log('Created new typed note with ID:', noteId);
+      loadNotes();
+    } catch (error) {
+      console.error('Error creating typed note:', error);
+      Alert.alert('Error', 'Failed to create note');
+    }
+  }, [loadNotes]);
+
+  const renderItem = useCallback(({item, index}) => (
+    <NoteCard 
+      item={item} 
+      index={index} 
+      onDelete={handleDeleteNote} 
+      onUpdateCategory={handleUpdateCategory} 
+      onToggleCompletion={handleToggleCompletion} 
+      onUpdateDueDate={handleUpdateDueDate} 
+      onUpdateReminder={handleUpdateReminder} 
+      onUpdatePriority={handleUpdatePriority} 
+      theme={theme} 
+      isLandscape={isLandscape} 
+    />
+  ), [
+    handleDeleteNote, 
+    handleUpdateCategory, 
+    handleToggleCompletion, 
+    handleUpdateDueDate, 
+    handleUpdateReminder, 
+    handleUpdatePriority, 
+    theme, 
+    isLandscape
+  ]);
+
+  const keyExtractor = useCallback(item => item.id, []);
 
   const toggleDeletedNotesModal = useCallback(() => {
-    setDeletedNotesModalVisible(prev => !prev)
-  }, [])
+    setDeletedNotesModalVisible(prev => !prev);
+  }, []);
 
   if (isLoading) {
     return (
@@ -977,7 +1004,7 @@ export default function NotesScreen() {
       >
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
-    )
+    );
   }
 
   return (
@@ -1002,16 +1029,25 @@ export default function NotesScreen() {
           maxToRenderPerBatch={5}
           windowSize={5}
           numColumns={isLandscape ? 2 : 1} // Use 2 columns in landscape mode
-          key={isLandscape ? 'landscape' : 'portrait'} // Key change forces FlatList re-render on orientation change
-          columnWrapperStyle={isLandscape ? styles.columnWrapper : null} // Apply style to wrap columns in landscape
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} titleColor={theme.textColor} title="Refreshing..." />}
+          key={isLandscape ? 'landscape' : 'portrait'} // Force re-render on orientation change
+          columnWrapperStyle={isLandscape ? styles.columnWrapper : null} // Style for columns in landscape
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={['#4F46E5']} 
+              tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} 
+              titleColor={theme.textColor} 
+              title="Refreshing..." 
+            />
+          }
         />
       )}
       <FAB theme={theme} isLandscape={isLandscape} isOnline={isOnline} onCreateNote={handleOpenCreateNoteModal} />
       <DeletedNotesModal visible={deletedNotesModalVisible} onClose={toggleDeletedNotesModal} theme={theme} noteService={noteService} />
       <CreateNoteModal visible={createNoteModalVisible} onClose={() => setCreateNoteModalVisible(false)} onSave={handleSaveTypedNote} theme={theme} />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({

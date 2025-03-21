@@ -115,17 +115,10 @@ export default function TabLayout() {
     image: {
       height: 50,
       width: 270,
-      borderRadius: 20, // Add rounded corners
-      marginBottom: 10, // Add space below the image
+      borderRadius: 20,
+      marginBottom: 10,
     },
     
-    // appName: {
-    //   fontSize: 24,
-    //   fontWeight: '600',
-    //   color: themeColors.appNameColor,
-    //   textAlign: 'center', // Center text
-    //   marginTop: 5,
-    // },
     tabItem: {
       flexDirection: "row",
       alignItems: "center",
@@ -173,7 +166,6 @@ export default function TabLayout() {
           tabBar={({ state, descriptors, navigation }) => (
             <View style={styles.sidebarContainer}>
               <View style={styles.appNameContainer}>
-                {/* <Text style={styles.appName}>Taskly</Text> */}
                 <Image
                   style={styles.image}
                   source={require("@/icons/adaptive-icon.png")}
@@ -190,10 +182,10 @@ export default function TabLayout() {
                 if (!tab) return null
 
                 return (
-                  <View
+                  <Pressable
                     key={route.key}
                     style={[styles.tabItem, isFocused && styles.activeTabItem]}
-                    onTouchEnd={() => {
+                    onPress={() => {
                       const event = navigation.emit({
                         type: "tabPress",
                         target: route.key,
@@ -204,6 +196,9 @@ export default function TabLayout() {
                         navigation.navigate(route.name)
                       }
                     }}
+                    accessibilityRole="button"
+                    accessibilityState={isFocused ? { selected: true } : {}}
+                    accessibilityLabel={options.tabBarAccessibilityLabel}
                   >
                     <Ionicons
                       name={tab.icon as any}
@@ -221,7 +216,7 @@ export default function TabLayout() {
                     >
                       {label}
                     </Text>
-                  </View>
+                  </Pressable>
                 )
               })}
             </View>
@@ -242,64 +237,64 @@ export default function TabLayout() {
     )
   }
 
-// For phone or tablet in portrait, use the original bottom tabs
-return (
-  <>
-    <NavigationBarThemeHandler />
+  // For phone or tablet in portrait, use the original bottom tabs
+  return (
+    <>
+      <NavigationBarThemeHandler />
 
-    <Tabs
-      screenOptions={{
-        tabBarStyle: {
-          backgroundColor: themeColors.tabBackground,
-          borderTopWidth: 0.3,
-          borderTopColor: themeColors.tabBorder,
-          height: Platform.OS === "ios" ? 88 : 78,
-          paddingBottom: Platform.OS === "ios" ? 28 : 15,
-          paddingTop: 15,
-          // Make sure the tab bar is positioned above the navigation bar on Android
-          ...(Platform.OS === "android" && {
-            position: "absolute",
-            zIndex: 1,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            elevation: 8,
-          }),
-        },
-        tabBarActiveTintColor: themeColors.activeTintColor,
-        tabBarInactiveTintColor: themeColors.inactiveTintColor,
-        headerStyle: {
-          backgroundColor: themeColors.headerBackground,
-        },
-        headerShown: false,
-        headerTitleStyle: {
-          fontWeight: "600",
-          fontSize: 17,
-          color: themeColors.headerTintColor,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
-        },
-        tabBarButton: (props) => (
-          <Pressable {...props} android_ripple={{ color: 'transparent' }} />
-        ),
-      }}
-    >
-      {tabConfig.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: tab.title,
-            headerTitle: tab.title,
-            tabBarIcon: ({ size, color }) => (
-              <Ionicons name={tab.icon as any} size={size} color={color} />
-            ),
-          }}
-        />
-      ))}
-    </Tabs>
-  </>
-)
+      <Tabs
+        screenOptions={{
+          tabBarStyle: {
+            backgroundColor: themeColors.tabBackground,
+            borderTopWidth: 0.3,
+            borderTopColor: themeColors.tabBorder,
+            height: Platform.OS === "ios" ? 88 : 78,
+            paddingBottom: Platform.OS === "ios" ? 28 : 15,
+            paddingTop: 15,
+            // Make sure the tab bar is positioned above the navigation bar on Android
+            ...(Platform.OS === "android" && {
+              position: "absolute",
+              zIndex: 1,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              elevation: 8,
+            }),
+          },
+          tabBarActiveTintColor: themeColors.activeTintColor,
+          tabBarInactiveTintColor: themeColors.inactiveTintColor,
+          headerStyle: {
+            backgroundColor: themeColors.headerBackground,
+          },
+          headerShown: false,
+          headerTitleStyle: {
+            fontWeight: "600",
+            fontSize: 17,
+            color: themeColors.headerTintColor,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: "500",
+          },
+          tabBarButton: (props) => (
+            <Pressable {...props} android_ripple={{ color: 'transparent' }} />
+          ),
+        }}
+      >
+        {tabConfig.map((tab) => (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: tab.title,
+              headerTitle: tab.title,
+              tabBarIcon: ({ size, color }) => (
+                <Ionicons name={tab.icon as any} size={size} color={color} />
+              ),
+            }}
+          />
+        ))}
+      </Tabs>
+    </>
+  )
 }

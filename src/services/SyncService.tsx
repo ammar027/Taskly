@@ -387,20 +387,20 @@ export default function SyncService({ userId }) {
       if (connectionState.isConnected && connectionState.isInternetReachable !== false) {
         syncData()
 
-        // Set up periodic sync every 30 seconds when online
+        // Set up periodic sync every 5 seconds when online
         const intervalId = setInterval(() => {
           NetInfo.fetch().then((state) => {
             if (state.isConnected) {
               syncData()
             }
           })
-        }, 10000)
+        }, 5000)
 
         return intervalId
       } else {
         console.log("Device offline - scheduling initial sync retry")
-        // Try again in 40 seconds
-        return setTimeout(attemptInitialSync, 40000)
+        // Try again in 10 seconds
+        return setTimeout(attemptInitialSync, 10000)
       }
     }
 

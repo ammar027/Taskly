@@ -8,11 +8,11 @@ import {memo, useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {StatusBar} from 'expo-status-bar'
 import {router, useLocalSearchParams} from 'expo-router'
 import {ActivityIndicator} from 'react-native'
-import {CategorySelectionModal} from '../../components/Modals/categoriessection'
+import CategorySelectionModalWeb from '@/components/Modals/CategorySelectionModalWeb'
 import CustomAlert from '@/components/Modals/CutomAlert'
 import {useTheme} from '@/components/ThemeContext'
 import {useScreenDetails} from '@/components/OrientationControl'
-import {ResponsiveHeader} from '@/components/ResponsiveHeader'
+import {ResponsiveHeader} from '@/components/ResponsiveHeader.web'
 import {useRealm} from '@/components/RealmContext'
 import {AuthContext, useAuth} from '@/components/AuthContext'
 import NoteService from '@/services/NoteService'
@@ -22,6 +22,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import {TextInput} from 'react-native-gesture-handler'
 import {createNoteService} from '@/services/NoteServiceFactory'
 import {supabase} from '@/lib/supabase'
+import SyncServiceWeb from '@/services/SyncServiceWeb'
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
@@ -226,7 +227,7 @@ const NoteCard = memo(({item, index, onDelete, onUpdateCategory, onToggleComplet
         </View>
       </AnimatedPressable>
 
-      <CategorySelectionModal visible={categoryModalVisible} onClose={() => setCategoryModalVisible(false)} onSelectCategory={handleUpdateCategory} currentCategory={item.category} theme={theme} />
+      <CategorySelectionModalWeb visible={categoryModalVisible} onClose={() => setCategoryModalVisible(false)} onSelectCategory={handleUpdateCategory} currentCategory={item.category} theme={theme} />
       <DatePickerModal visible={datePickerVisible} onClose={() => setDatePickerVisible(false)} onSelectDate={handleUpdateDueDate} currentDate={item.dueDate} theme={theme} />
       <ReminderPickerModal visible={reminderPickerVisible} onClose={() => setReminderPickerVisible(false)} onSelectReminder={handleUpdateReminder} currentReminder={item.reminder} theme={theme} />
       <PrioritySelectionModal visible={priorityModalVisible} onClose={() => setPriorityModalVisible(false)} onSelectPriority={handleUpdatePriority} currentPriority={item.priority} theme={theme} />
@@ -717,6 +718,41 @@ export default function NotesScreen() {
     }
   }, [user])
 
+  // Updated handleDataChange function for NotesScreen component
+  const handleDataChange = useCallback((data, changeType, noteId) => {
+    console.log(`Data changed (${changeType}), updating UI immediately`)
+
+    if (changeType === 'FULL_REFRESH' || Array.isArray(data)) {
+      // If we received a full array of notes, replace the entire state
+      setNotes(data)
+      return
+    }
+
+    // If we received a single note update
+    if (data && noteId) {
+      setNotes(prevNotes => {
+        // Check if this note already exists in our array
+        const existingIndex = prevNotes.findIndex(note => note.id === noteId)
+
+        if (existingIndex >= 0) {
+          // Update existing note
+          const updatedNotes = [...prevNotes]
+          updatedNotes[existingIndex] = data
+          return updatedNotes
+        } else if (changeType === 'INSERT') {
+          // Add new note to the beginning of the array
+          return [data, ...prevNotes]
+        } else {
+          // For other cases, keep notes unchanged
+          return prevNotes
+        }
+      })
+    } else if (changeType === 'DELETE' && noteId) {
+      // Remove deleted note from the state
+      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteId))
+    }
+  }, [])
+
   useEffect(() => {
     if (noteService.current && user) {
       loadNotes()
@@ -745,15 +781,16 @@ export default function NotesScreen() {
         }
       }
     }
-    // For web platform, set up a different approach
-    else if (Platform.OS === 'web') {
+    // For web platform, we use SyncServiceWeb which handles changes via callbacks
+    // We still keep a fallback interval for safety
+    else if (Platform.OS === 'web' && isOnline) {
       // Web uses a different approach - changes are handled by SyncServiceWeb
       // Set up a simple interval to refresh data periodically as a fallback
       const refreshInterval = setInterval(() => {
         if (isOnline) {
           loadNotes()
         }
-      }, 30000) // Refresh every 30 seconds
+      }, 30000) // Refresh every 30 seconds (as fallback)
 
       return () => {
         clearInterval(refreshInterval)
@@ -877,19 +914,23 @@ export default function NotesScreen() {
 
       console.log('Deleting note with ID:', noteId)
 
+      // Optimistic UI update
+      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteId))
+
       try {
         // Delete the note (soft delete)
         const success = noteService.current.deleteNote(noteId)
 
-        if (success) {
-          console.log('Note deleted successfully')
-          loadNotes()
-        } else {
+        if (!success) {
           console.log('Failed to delete note, ID not found')
+          // Revert optimistic update on failure
+          loadNotes()
         }
       } catch (error) {
         console.error('Error deleting note:', error)
         Alert.alert('Error', 'Failed to delete note')
+        // Revert optimistic update on error
+        loadNotes()
       }
     },
     [loadNotes]
@@ -928,18 +969,24 @@ export default function NotesScreen() {
       if (!noteService.current) return
 
       console.log('Toggling completion for note:', noteId, isCompleted)
+
+      // Optimistic UI update - update the state immediately
+      setNotes(prevNotes => prevNotes.map(note => (note.id === noteId ? {...note, isCompleted: isCompleted} : note)))
+
+      // Then send the update to the server
       try {
         const success = noteService.current.toggleCompletion(noteId, isCompleted)
 
-        if (success) {
-          console.log('Note completion status updated successfully')
-          loadNotes()
-        } else {
+        if (!success) {
           console.log('Failed to update note completion status, ID not found')
+          // If server update fails, revert the optimistic update
+          loadNotes()
         }
       } catch (error) {
         console.error('Error updating note completion status:', error)
         Alert.alert('Error', 'Failed to update completion status')
+        // Revert the optimistic update on error
+        loadNotes()
       }
     },
     [loadNotes]
@@ -1018,72 +1065,72 @@ export default function NotesScreen() {
       <FAB theme={theme} isLandscape={isLandscape} isOnline={isOnline} onCreateNote={handleOpenCreateNoteModal} />
       <DeletedNotesModal visible={deletedNotesModalVisible} onClose={toggleDeletedNotesModal} theme={theme} noteService={noteService} />
       <CreateNoteModal visible={createNoteModalVisible} onClose={() => setCreateNoteModalVisible(false)} onSave={handleSaveTypedNote} theme={theme} />
+      <SyncServiceWeb userId={user?.id} noteService={noteService.current} onDataChange={handleDataChange} />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  welcomeText: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontSize: 15, fontWeight: '500' },
-  listContainer: { padding: 16, paddingBottom: 140 },
-  columnWrapper: { justifyContent: 'space-between', marginBottom: 0 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 12 },
-  emptyStateSubtext: { fontSize: 14, textAlign: 'center', marginTop: 8 },
-  noteCard: { marginBottom: 16, borderRadius: 16, padding: 16, elevation: 0, borderWidth: 1 },
-  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  titleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
-  categoryDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  noteTitle: { fontSize: 22, fontWeight: '600', flex: 1 },
-  noteCategory: { fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  noteContent: { fontSize: 13, lineHeight: 22, marginBottom: 10 },
-  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 90, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1 },
-  fabIcon: { marginRight: 6 },
-  fabText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  checkboxContainer: { marginRight: 8 },
-  dateAndMetaContainer: { flex: 1, flexDirection: 'column', alignItems: 'flex-start' },
-  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 8 },
-  dateAndDueContainer: { flexDirection: 'column', alignItems: 'flex-start' },
-  noteDate: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
-  metaItemsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  metaText: { fontSize: 12, fontWeight: '500', marginLeft: 4 },
-  addMetaItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2, opacity: 0.7, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)', borderStyle: 'dashed', borderRadius: 12, paddingHorizontal: 6 },
-  priorityPill: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  priorityText: { fontSize: 12, fontWeight: '700' },
-  actionIcons: { flexDirection: 'row', gap: 12 },
-  iconButton: { padding: 4 },
-  dueDateIcon: { marginRight: 4 },
-  dueDateText: { fontSize: 12, fontWeight: '500' },
-  rightFooterSection: { flexDirection: 'row', alignItems: 'center' },
-  priority: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, marginRight: 12 },
-  priorityDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
-  metaContainer: { flexDirection: 'column', gap: 4 },
-  dueDate: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2 },
-  reminder: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2 },
-  reminderIcon: { marginRight: 4 },
-  reminderText: { fontSize: 12, fontWeight: '500' },
-  addMeta: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2, opacity: 0.7 },
-  addMetaText: { fontSize: 12, marginLeft: 4 },
-  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '90%', maxWidth: 400, borderRadius: 12, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '600' },
-  datePickerContainer: { marginBottom: 20 },
-  timePickerContainer: { marginBottom: 20 },
-  dateDisplay: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 },
-  timeDisplay: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  modalButton: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flex: 1, marginHorizontal: 5 },
-  clearButton: { backgroundColor: 'rgba(160, 160, 160, 0.36)' },
-  clearButtonText: { color: 'rgb(0, 0, 0)', fontWeight: '600' },
-  confirmButton: { backgroundColor: '#4F46E5' },
-  confirmButtonText: { color: '#ffffff', fontWeight: '600' },
-  reminderOptions: { flexDirection: 'row', marginBottom: 20, gap: 8 },
-  reminderOption: { flex: 1, padding: 10, borderWidth: 1, borderRadius: 8, alignItems: 'center' },
-  selectedOption: { backgroundColor: 'rgba(79, 70, 229, 0.1)', borderColor: '#4F46E5' },
-  minutesContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 }
-});
-
+  actionIcons: {flexDirection: 'row', gap: 12},
+  addMeta: {alignItems: 'center', flexDirection: 'row', opacity: 0.7, paddingVertical: 2},
+  addMetaItem: {alignItems: 'center', borderColor: 'rgba(0,0,0,0.1)', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, flexDirection: 'row', opacity: 0.7, paddingHorizontal: 6, paddingVertical: 2},
+  addMetaText: {fontSize: 12, marginLeft: 4},
+  categoryDot: {borderRadius: 4, height: 8, marginRight: 8, width: 8},
+  checkbox: {alignItems: 'center', borderRadius: 4, borderWidth: 2, height: 20, justifyContent: 'center', width: 20},
+  checkboxContainer: {marginRight: 8},
+  clearButton: {backgroundColor: 'rgba(160, 160, 160, 0.36)'},
+  clearButtonText: {color: 'rgb(0, 0, 0)', fontWeight: '600'},
+  columnWrapper: {justifyContent: 'space-between', marginBottom: 0},
+  confirmButton: {backgroundColor: '#4F46E5'},
+  confirmButtonText: {color: '#ffffff', fontWeight: '600'},
+  container: {flex: 1},
+  dateAndDueContainer: {alignItems: 'flex-start', flexDirection: 'column'},
+  dateAndMetaContainer: {alignItems: 'flex-start', flex: 1, flexDirection: 'column'},
+  dateDisplay: {alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12},
+  datePickerContainer: {marginBottom: 20},
+  dueDate: {alignItems: 'center', flexDirection: 'row', paddingVertical: 2},
+  dueDateIcon: {marginRight: 4},
+  dueDateText: {fontSize: 12, fontWeight: '500'},
+  emptyState: {alignItems: 'center', flex: 1, justifyContent: 'center', padding: 20},
+  emptyStateSubtext: {fontSize: 14, marginTop: 8, textAlign: 'center'},
+  emptyStateText: {fontSize: 18, fontWeight: '600', marginTop: 12},
+  fab: {alignItems: 'center', borderRadius: 30, borderWidth: 1, bottom: Platform.OS === 'ios' ? 100 : 90, elevation: 0, flexDirection: 'row', padding: 15, position: 'absolute', right: 10},
+  fabIcon: {marginRight: 6},
+  fabText: {color: '#fff', fontSize: 14, fontWeight: '600'},
+  iconButton: {padding: 4},
+  listContainer: {padding: 16, paddingBottom: 140},
+  metaContainer: {flexDirection: 'column', gap: 4},
+  metaItem: {alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 4},
+  metaItemsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
+  metaText: {fontSize: 12, fontWeight: '500', marginLeft: 4},
+  minutesContainer: {alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 20},
+  modalActions: {flexDirection: 'row', justifyContent: 'space-between', marginTop: 10},
+  modalButton: {alignItems: 'center', borderRadius: 8, flex: 1, justifyContent: 'center', marginHorizontal: 5, paddingHorizontal: 24, paddingVertical: 12},
+  modalContent: {borderRadius: 12, elevation: 5, maxWidth: 400, padding: 20, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.25, shadowRadius: 3.84, width: '90%'},
+  modalHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20},
+  modalOverlay: {alignItems: 'center', flex: 1, justifyContent: 'center', padding: 20},
+  modalTitle: {fontSize: 18, fontWeight: '600'},
+  noteCard: {borderRadius: 16, borderWidth: 1, elevation: 0, marginBottom: 16, padding: 16},
+  noteCategory: {borderRadius: 12, fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4},
+  noteContent: {fontSize: 13, lineHeight: 22, marginBottom: 10},
+  noteDate: {fontSize: 12, fontWeight: '500', marginBottom: 4},
+  noteFooter: {alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', marginTop: 8},
+  noteHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12},
+  noteTitle: {flex: 1, fontSize: 22, fontWeight: '600'},
+  priority: {alignItems: 'center', borderRadius: 12, flexDirection: 'row', marginRight: 12, paddingHorizontal: 8, paddingVertical: 4},
+  priorityDot: {borderRadius: 6, height: 12, marginRight: 10, width: 12},
+  priorityPill: {alignItems: 'center', borderRadius: 12, height: 24, justifyContent: 'center', marginRight: 12, width: 24},
+  priorityText: {fontSize: 12, fontWeight: '700'},
+  reminder: {alignItems: 'center', flexDirection: 'row', paddingVertical: 2},
+  reminderIcon: {marginRight: 4},
+  reminderOption: {alignItems: 'center', borderRadius: 8, borderWidth: 1, flex: 1, padding: 10},
+  reminderOptions: {flexDirection: 'row', gap: 8, marginBottom: 20},
+  reminderText: {fontSize: 12, fontWeight: '500'},
+  rightFooterSection: {alignItems: 'center', flexDirection: 'row'},
+  selectedOption: {backgroundColor: 'rgba(79, 70, 229, 0.1)', borderColor: '#4F46E5'},
+  subtitle: {fontSize: 15, fontWeight: '500'},
+  timeDisplay: {alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12},
+  timePickerContainer: {marginBottom: 20},
+  titleContainer: {alignItems: 'center', flexDirection: 'row', flex: 1, marginRight: 12},
+  welcomeText: {fontSize: 28, fontWeight: '700', marginBottom: 4}
+})

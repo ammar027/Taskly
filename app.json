@@ -16,7 +16,7 @@
     "jsEngine": "hermes",
     "assetBundlePatterns": ["**/*"],
     "android": {
-      "package": "com.taskly",
+      "package": "com.tasskly",
       "permissions": ["RECORD_AUDIO"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
@@ -39,7 +39,7 @@
     "ios": {
       "icon": "./assets/images/app-icon-ios.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.taskly"
+      "bundleIdentifier": "com.tasskly"
     },
     "web": {
       "favicon": "./assets/icons/icon.png",

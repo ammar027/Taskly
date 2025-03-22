@@ -33,7 +33,7 @@ const ErrorState = ({message, onBack}) => {
   )
 }
 
-const Header = ({isEditing, onBack, onEdit, onSave, onCancel}) => {
+const Header = ({isEditing, onBack, onEdit, onSave, onCancel, onRefresh, isOnline}) => {
   const {isDarkMode} = useTheme()
   return (
     <View
@@ -78,10 +78,15 @@ const Header = ({isEditing, onBack, onEdit, onSave, onCancel}) => {
             </Pressable>
           </>
         ) : (
-          <Pressable style={styles.headerButton} onPress={onEdit}>
-            <Ionicons name="pencil" size={20} color={isDarkMode ? '#818cf8' : '#4F46E5'} />
-            <Text style={[styles.editButtonText, {color: isDarkMode ? '#818cf8' : '#4F46E5'}]}>Edit</Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.headerButton} onPress={onRefresh}>
+              <Ionicons name="refresh" size={20} color={isDarkMode ? '#818cf8' : '#4F46E5'} />
+            </Pressable>
+            <Pressable style={styles.headerButton} onPress={onEdit}>
+              <Ionicons name="pencil" size={20} color={isDarkMode ? '#818cf8' : '#4F46E5'} />
+              <Text style={[styles.editButtonText, {color: isDarkMode ? '#818cf8' : '#4F46E5'}]}>Edit</Text>
+            </Pressable>
+          </>
         )}
       </View>
     </View>
@@ -90,7 +95,9 @@ const Header = ({isEditing, onBack, onEdit, onSave, onCancel}) => {
 
 export default function NoteDetails() {
   const {isDarkMode} = useTheme()
-  const {id} = useLocalSearchParams()
+  const params = useLocalSearchParams()
+  const id = params.id?.toString()
+
   const realm = useRealm()
   const {user, isOnline} = useContext(AuthContext)
   const [note, setNote] = useState(null)
@@ -100,14 +107,16 @@ export default function NoteDetails() {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    category: ''
+    category: '',
+    color: '#4F46E5'
   })
   const [noteService, setNoteService] = useState(null)
+  const [refreshIntervalId, setRefreshIntervalId] = useState(null)
 
   // Initialize note service
   useEffect(() => {
     if (realm && user) {
-      // Using the same pattern as NotesScreen - create or get the appropriate note service
+      console.log('Initializing note service for user:', user.id)
       const service = createNoteService(realm, user.id, supabase)
       setNoteService(service)
     }
@@ -115,13 +124,18 @@ export default function NoteDetails() {
 
   // Load note data
   const loadNoteDetails = useCallback(async () => {
-    if (!noteService || !id) return
+    if (!noteService || !id) {
+      console.log('Cannot load note: no service or ID')
+      return
+    }
 
+    setIsLoading(true)
     try {
       console.log('Loading note with ID:', id)
-      const foundNote = noteService.getNoteById(id)
+      const foundNote = await noteService.getNoteById(id)
 
       if (foundNote) {
+        console.log('Note found:', foundNote.title)
         // Convert Realm object to plain object
         const plainNote = {
           id: foundNote.id,
@@ -129,8 +143,8 @@ export default function NoteDetails() {
           content: foundNote.content || '',
           category: foundNote.category || 'Notes',
           color: foundNote.color || '#4F46E5',
-          createdAt: foundNote.createdAt,
-          updatedAt: foundNote.updatedAt,
+          createdAt: foundNote.createdAt ? new Date(foundNote.createdAt) : new Date(),
+          updatedAt: foundNote.updatedAt ? new Date(foundNote.updatedAt) : new Date(),
           isCompleted: foundNote.isCompleted || false,
           dueDate: foundNote.dueDate || null,
           priority: foundNote.priority || 'medium',
@@ -138,78 +152,60 @@ export default function NoteDetails() {
         }
 
         setNote(plainNote)
-        setFormData({
-          title: plainNote.title,
-          content: plainNote.content,
-          category: plainNote.category,
-          color: plainNote.color
-        })
+        // Only update form data if not currently editing
+        if (!isEditing) {
+          setFormData({
+            title: plainNote.title,
+            content: plainNote.content,
+            category: plainNote.category,
+            color: plainNote.color
+          })
+        }
       } else {
         console.error('Note not found with ID:', id)
         setError('Note not found')
       }
-    } catch (error) {
-      console.error('Error loading note details:', error)
+    } catch (err) {
+      console.error('Error loading note details:', err)
       setError('Failed to load note details')
     } finally {
       setIsLoading(false)
     }
-  }, [id, noteService])
+  }, [id, noteService, isEditing])
 
   // Initial data load
   useEffect(() => {
-    if (noteService) {
+    if (noteService && id) {
       loadNoteDetails()
     }
-  }, [loadNoteDetails, noteService])
+  }, [loadNoteDetails, noteService, id])
 
-  // Platform-specific data fetching strategy
+  // Web specific polling for updates - but pause during editing
   useEffect(() => {
-    if (!noteService || !id) return
-
-    // For native platforms, use Realm listeners
-    if (Platform.OS !== 'web' && realm) {
-      // Listen for changes to this specific note
-      const noteObject = realm.objectForPrimaryKey('Note', id)
-
-      if (!noteObject) {
-        console.log('Note not found in Realm, cannot set up listener')
-        return
-      }
-
-      const listener = (note, changes) => {
-        // Reload note when changes are detected
-        console.log('Note change detected, reloading data')
-        loadNoteDetails()
-      }
-
-      // Add the listener
-      noteObject.addListener(listener)
-
-      // Remove the listener when the component unmounts
-      return () => {
-        if (noteObject && !noteObject.isInvalidated) {
-          noteObject.removeListener(listener)
-        }
-      }
-    }
-    // For web platform, set up a different approach
-    else if (Platform.OS === 'web') {
-      // Web uses a different approach - changes are handled by SyncServiceWeb
-      // Set up a simple interval to refresh data periodically as a fallback
+    // Only for web platform and when not editing
+    if (Platform.OS === 'web' && noteService && id && isOnline && !isEditing) {
       console.log('Setting up web refresh interval for note details')
-      const refreshInterval = setInterval(() => {
-        if (isOnline) {
-          console.log('Web refresh: checking for note updates')
-          loadNoteDetails()
-        }
+      const intervalId = setInterval(() => {
+        console.log('Web refresh: checking for note updates')
+        loadNoteDetails()
       }, 10000) // Refresh every 10 seconds
 
+      setRefreshIntervalId(intervalId)
+
       return () => {
-        clearInterval(refreshInterval)
+        clearInterval(intervalId)
       }
     }
-  }, [realm, id, loadNoteDetails, noteService, isOnline])
+  }, [loadNoteDetails, noteService, id, isOnline, isEditing])
+
+  // Clear refresh interval when entering edit mode
+  useEffect(() => {
+    if (isEditing && refreshIntervalId) {
+      console.log('Pausing auto-refresh during editing')
+      clearInterval(refreshIntervalId)
+      setRefreshIntervalId(null)
+    }
+  }, [isEditing, refreshIntervalId])
 
   const handleSave = useCallback(async () => {
     if (!formData.title.trim()) {
@@ -218,7 +214,8 @@ export default function NoteDetails() {
     }
 
     try {
-      const success = noteService.updateNote(id, {
+      console.log('Saving note changes for ID:', id)
+      const success = await noteService.updateNote(id, {
         title: formData.title,
         content: formData.content,
         category: formData.category
@@ -236,42 +233,52 @@ export default function NoteDetails() {
 
         setIsEditing(false)
         Alert.alert('Success', 'Note updated successfully')
+
+        // Manually refresh data once after save
+        setTimeout(() => {
+          loadNoteDetails()
+        }, 500)
       } else {
         Alert.alert('Error', 'Failed to update note')
       }
-    } catch (error) {
-      console.error('Error saving note:', error)
+    } catch (err) {
+      console.error('Error saving note:', err)
       Alert.alert('Error', 'Failed to save changes')
     }
-  }, [formData, id, noteService])
+  }, [formData, id, noteService, loadNoteDetails])
 
   const handleCancel = () => {
-    setFormData({
-      title: note.title,
-      content: note.content,
-      category: note.category,
-      color: note.color
-    })
+    if (note) {
+      // Reset form data to match the current note data
+      setFormData({
+        title: note.title,
+        content: note.content,
+        category: note.category,
+        color: note.color
+      })
+    }
     setIsEditing(false)
   }
 
   // Custom refresh function for manual refreshes
   const handleRefresh = useCallback(() => {
-    console.log('Manually refreshing note details')
-    loadNoteDetails()
-  }, [loadNoteDetails])
+    if (!isEditing) {
+      console.log('Manually refreshing note details')
+      loadNoteDetails()
+    }
+  }, [loadNoteDetails, isEditing])
 
-  if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorState message={error} onBack={() => router.back()} />
-  if (!note) return <ErrorState message="Note not found" onBack={() => router.back()} />
+  if (isLoading && !note) return <LoadingSpinner />
+  if (error) return <ErrorState message={error} onBack={() => router.replace('/(tabs)')} />
+  if (!note) return <ErrorState message="Note not found" onBack={() => router.replace('/(tabs)')} />
 
   return (
     <View style={[styles.container, {backgroundColor: isDarkMode ? '#1a1a1a' : '#FFFFFF'}]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
-      <Header isEditing={isEditing} onBack={() => router.back()} onEdit={() => setIsEditing(true)} onSave={handleSave} onCancel={handleCancel} onRefresh={handleRefresh} isOnline={isOnline} />
+      <Header isEditing={isEditing} onBack={() => router.replace('/(tabs)')} onEdit={() => setIsEditing(true)} onSave={handleSave} onCancel={handleCancel} onRefresh={handleRefresh} isOnline={isOnline} />
 
-      <ScrollView style={styles.contentContainer} refreshControl={<RefreshControl refreshing={isLoading} onRefresh={handleRefresh} colors={['#4F46E5']} tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} titleColor={isDarkMode ? '#e5e5e5' : '#1E293B'} title="Refreshing..." />}>
+      <ScrollView style={styles.contentContainer} refreshControl={<RefreshControl refreshing={isLoading && !isEditing} onRefresh={handleRefresh} colors={['#4F46E5']} tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} titleColor={isDarkMode ? '#e5e5e5' : '#1E293B'} title="Refreshing..." enabled={!isEditing} />}>
         <View
           style={[
             styles.categoryBadge,
@@ -295,7 +302,7 @@ export default function NoteDetails() {
               day: 'numeric'
             })}
           </Text>
-          {note.updatedAt && note.updatedAt.getTime() !== note.createdAt.getTime() && (
+          {note.updatedAt && new Date(note.updatedAt).getTime() !== new Date(note.createdAt).getTime() && (
             <>
               <Text style={[styles.dateText, {color: isDarkMode ? '#9ca3af' : '#64748B'}]}> • Edited: </Text>
               <Text style={[styles.dateText, {color: isDarkMode ? '#9ca3af' : '#64748B'}]}>
@@ -344,7 +351,7 @@ export default function NoteDetails() {
           </View>
         )}
 
-        {isEditing ? <TextInput style={[styles.contentInput, {color: isDarkMode ? '#d1d5db' : '#334155'}]} value={formData.content} onChangeText={text => setFormData(prev => ({...prev, content: text}))} placeholder="Note content..." placeholderTextColor={isDarkMode ? '#6b7280' : '#94A3B8'} multiline textAlignVertical="top" /> : <Text style={[styles.contentText, {color: isDarkMode ? '#d1d5db' : '#334155'}]}>{note.content}</Text>}
+        {isEditing ? <TextInput style={[styles.contentInput, {color: isDarkMode ? '#d1d5db' : '#334155'}]} value={formData.content} onChangeText={text => setFormData(prev => ({...prev, content: text}))} placeholder="Note content..." placeholderTextColor={isDarkMode ? '#6b7280' : '#94A3B8'} multiline textAlignVertical="top" /> : <Text style={[styles.contentText, {color: isDarkMode ? '#d1d5db' : '#334155'}]}>{note.content || 'No content'}</Text>}
       </ScrollView>
     </View>
   )

@@ -60,7 +60,7 @@ export const ResponsiveHeader = ({ notesCount, onTrashPress }) => {
         )}
         
         <View style={styles.headerActions}>
-          <SyncStatusIndicator />
+          {/* <SyncStatusIndicator /> */}
           <Pressable 
             style={styles.trashButton} 
             onPress={onTrashPress}

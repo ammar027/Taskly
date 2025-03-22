@@ -1,4 +1,3 @@
-/* eslint-disable react-native/no-inline-styles */
 /* eslint-disable react-native/no-color-literals */
 import React, {useState, useEffect, useCallback} from 'react'
 import {View, Text, StyleSheet, FlatList, Pressable, Modal, SafeAreaView, ActivityIndicator, StatusBar, Platform} from 'react-native'
@@ -115,71 +114,100 @@ const DeletedNoteCard = ({item, index, onRestore, onHardDelete, theme}) => {
   )
 }
 
-const DeletedNotesModal = ({visible, onClose, theme, noteService}) => {
+const DeletedNotesModal = ({visible, onClose, theme, noteService, user}) => {
   const [deletedNotes, setDeletedNotes] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isEmpty, setIsEmpty] = useState(false)
-  const [processingHardDelete, setProcessingHardDelete] = useState(false)
+  const [processingAction, setProcessingAction] = useState(false)
 
   // Load deleted notes
-  const loadDeletedNotes = useCallback(() => {
-    if (!noteService.current) {
+  const loadDeletedNotes = useCallback(async () => {
+    if (!noteService) {
       setIsLoading(false)
       setIsEmpty(true)
       return
     }
 
     try {
-      // Get deleted notes from Realm
-      const realmDeletedNotes = noteService.current.realm.objects('Note').filtered('userId == $0 && isDeleted == true && (hardDeleted == null || hardDeleted == false)', noteService.current.userId).sorted('updatedAt', true)
+      setIsLoading(true)
 
-      // Convert to plain objects for React state
-      const plainDeletedNotes = Array.from(realmDeletedNotes).map(note => ({
-        id: note.id,
-        title: note.title || 'Untitled',
-        content: note.content,
-        updatedAt: note.updatedAt,
-        category: note.category || 'Notes',
-        color: note.color || '#4F46E5',
-        isSynced: note.isSynced
-      }))
+      let notes = []
 
-      setDeletedNotes(plainDeletedNotes)
-      setIsEmpty(plainDeletedNotes.length === 0)
+      // Check if we're on web and handle differently
+      if (Platform.OS === 'web') {
+        // For web, we need to access the noteService's Supabase connection
+        // No need to check .current since we're already passing noteService.current from parent
+        const supabase = noteService.supabase
+
+        if (supabase) {
+          const {data, error} = await supabase.from('notes').select('*').eq('user_id', user.id).eq('is_deleted', true).order('updated_at', {ascending: false})
+
+          if (error) throw error
+
+          // Transform the data to match your application's format
+          notes = data.map(note => ({
+            id: note.id,
+            title: note.title || 'Untitled',
+            content: note.content || '',
+            category: note.category || 'Tasks',
+            color: note.color || '#4F46E5',
+            updatedAt: note.updated_at,
+            createdAt: note.created_at,
+            isCompleted: note.is_completed || false,
+            isDeleted: note.is_deleted || false,
+            priority: note.priority || 'medium',
+            dueDate: note.due_date,
+            userId: note.user_id
+          }))
+        } else {
+          // Fallback to getDeletedNotes if available
+          if (typeof noteService.getDeletedNotes === 'function') {
+            notes = await noteService.getDeletedNotes(true)
+          } else {
+            console.error('No supabase connection and no getDeletedNotes method available')
+            setIsEmpty(true)
+            return
+          }
+        }
+      } else {
+        // For native, use the existing getDeletedNotes function
+        notes = await noteService.getDeletedNotes(true)
+      }
+
+      setDeletedNotes(notes || [])
+      setIsEmpty(!notes || notes.length === 0)
     } catch (error) {
       console.error('Error loading deleted notes:', error)
+      setIsEmpty(true)
     } finally {
       setIsLoading(false)
     }
-  }, [noteService])
+  }, [noteService, user?.id])
 
   useEffect(() => {
     if (visible) {
-      setIsLoading(true)
       loadDeletedNotes()
     }
   }, [visible, loadDeletedNotes])
 
   // Restore a note
   const handleRestoreNote = useCallback(
-    noteId => {
-      if (!noteService.current) return
+    async noteId => {
+      if (!noteService) return
 
       try {
-        const note = noteService.current.getNoteById(noteId)
+        setProcessingAction(true)
+        // Changed from noteService.recoverNote to noteService.restoreNote to match common naming
+        const success = typeof noteService.recoverNote === 'function' ? await noteService.recoverNote(noteId) : typeof noteService.restoreNote === 'function' ? await noteService.restoreNote(noteId) : false
 
-        if (note) {
-          noteService.current.realm.write(() => {
-            note.isDeleted = false
-            note.updatedAt = new Date()
-            note.isSynced = false // Mark for sync
-          })
-
+        if (success) {
           console.log('Note restored successfully:', noteId)
-          loadDeletedNotes() // Refresh the list
+          await loadDeletedNotes() // Refresh the list
         }
       } catch (error) {
         console.error('Error restoring note:', error)
+      } finally {
+        setProcessingAction(false)
       }
     },
     [loadDeletedNotes, noteService]
@@ -188,63 +216,44 @@ const DeletedNotesModal = ({visible, onClose, theme, noteService}) => {
   // Hard delete a note
   const handleHardDelete = useCallback(
     async noteId => {
-      if (!noteService.current) return false
+      if (!noteService) return false
 
-      setProcessingHardDelete(true)
       try {
-        const success = noteService.current.hardDeleteNote(noteId)
+        const success = await noteService.permanentlyDeleteNote(noteId)
 
         if (success) {
-          console.log('Note marked for permanent deletion:', noteId)
-          await new Promise(resolve => setTimeout(resolve, 500)) // Brief delay for UX
-          loadDeletedNotes() // Refresh the list
+          console.log('Note permanently deleted:', noteId)
           return true
         }
         return false
       } catch (error) {
         console.error('Error permanently deleting note:', error)
         return false
-      } finally {
-        setProcessingHardDelete(false)
       }
     },
-    [loadDeletedNotes, noteService]
+    [noteService]
   )
 
   // Empty trash (permanently delete all deleted notes)
   const handleEmptyTrash = useCallback(async () => {
-    if (!noteService.current || deletedNotes.length === 0) return
+    if (!noteService || deletedNotes.length === 0) return
 
     try {
-      setProcessingHardDelete(true)
-      const allDeletedNotes = noteService.current.realm.objects('Note').filtered('userId == $0 && isDeleted == true && (hardDeleted == null || hardDeleted == false)', noteService.current.userId)
+      setProcessingAction(true)
 
-      // Mark each note for hard deletion rather than deleting immediately
-      noteService.current.realm.write(() => {
-        allDeletedNotes.forEach(note => {
-          note.hardDeleted = true
-          note.isSynced = false
-          note.content = '' // Clear content to save space while waiting for sync
-        })
-      })
+      // Delete each note permanently
+      const deletePromises = deletedNotes.map(note => noteService.permanentlyDeleteNote(note.id))
 
-      // Add all to hard deleted IDs
-      allDeletedNotes.forEach(note => {
-        noteService.current.hardDeletedIds.add(note.id)
-      })
+      await Promise.all(deletePromises)
 
-      // Persist the hard deleted IDs
-      await noteService.current._persistHardDeletedIds()
-
-      console.log('All notes marked for permanent deletion')
-      await new Promise(resolve => setTimeout(resolve, 500)) // Brief delay for UX
-      loadDeletedNotes() // Refresh the list
+      console.log('All deleted notes permanently removed')
+      await loadDeletedNotes() // Refresh the list
     } catch (error) {
       console.error('Error emptying trash:', error)
     } finally {
-      setProcessingHardDelete(false)
+      setProcessingAction(false)
     }
-  }, [deletedNotes.length, loadDeletedNotes, noteService])
+  }, [deletedNotes, loadDeletedNotes, noteService])
 
   const renderItem = useCallback(({item, index}) => <DeletedNoteCard item={item} index={index} onRestore={handleRestoreNote} onHardDelete={handleHardDelete} theme={theme} />, [handleRestoreNote, handleHardDelete, theme])
 
@@ -258,10 +267,10 @@ const DeletedNotesModal = ({visible, onClose, theme, noteService}) => {
           </Pressable>
         </View>
 
-        {isLoading || processingHardDelete ? (
+        {isLoading || processingAction ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={[styles.loadingText, {color: theme.subTextColor, marginTop: 16}]}>{processingHardDelete ? 'Processing deletions...' : 'Loading notes...'}</Text>
+            <Text style={[styles.loadingText, {color: theme.subTextColor, marginTop: 16}]}>{processingAction ? 'Processing...' : 'Loading notes...'}</Text>
           </View>
         ) : isEmpty ? (
           <View style={styles.emptyContainer}>

@@ -16,7 +16,7 @@ import {ResponsiveHeader} from '@/components/ResponsiveHeader.web'
 import {useRealm} from '@/components/RealmContext'
 import {AuthContext, useAuth} from '@/components/AuthContext'
 import NoteService from '@/services/NoteService'
-import DeletedNotesModal from '@/components/Modals/DeletedNotes'
+import DeletedNotesModal from '@/components/Modals/DeletedNotes.web'
 import CreateNoteModal from '@/components/Modals/CreateNoteModal'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import {TextInput} from 'react-native-gesture-handler'
@@ -315,6 +315,46 @@ const DatePickerModal = ({visible, onClose, onSelectDate, currentDate, theme}) =
       </View>
     </Modal>
   )
+}
+
+// Add this utility function to better detect screen sizes for web
+const useScreenSizeDetection = () => {
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0
+  })
+
+  useEffect(() => {
+    // Only run on web
+    if (Platform.OS !== 'web') return
+
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    // Clean up
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Determine grid columns based on screen width
+  const getGridColumns = () => {
+    if (windowSize.width >= 1200) return 4
+    if (windowSize.width >= 768) return 2
+    return 1
+  }
+
+  return {
+    windowSize,
+    isSmallScreen: windowSize.width < 768,
+    isMediumScreen: windowSize.width >= 768 && windowSize.width < 1200,
+    isLargeScreen: windowSize.width >= 1200,
+    gridColumns: getGridColumns()
+  }
 }
 
 // PrioritySelectionModal - Aligned with findClosestPriority function
@@ -637,13 +677,13 @@ export default function NotesScreen() {
   const navigationCount = useRef(0)
   const {isDarkMode} = useTheme()
   const noteService = useRef(null)
+  const {isTabletLandscape, isLandscape} = useScreenDetails()
+  const {gridColumns, isSmallScreen} = useScreenSizeDetection()
   const [deletedNotesModalVisible, setDeletedNotesModalVisible] = useState(false)
   const [createNoteModalVisible, setCreateNoteModalVisible] = useState(false)
   const handleOpenCreateNoteModal = useCallback(() => {
     setCreateNoteModalVisible(true)
   }, [])
-  // Use your custom hook for orientation and device detection
-  const {isTabletLandscape, isLandscape} = useScreenDetails()
 
   // Define theme objects
   const theme = {
@@ -720,11 +760,19 @@ export default function NotesScreen() {
 
   // Updated handleDataChange function for NotesScreen component
   const handleDataChange = useCallback((data, changeType, noteId) => {
-    console.log(`Data changed (${changeType}), updating UI immediately`)
+    console.log(`Data changed (${changeType}), updating UI immediately`, {data, noteId})
 
     if (changeType === 'FULL_REFRESH' || Array.isArray(data)) {
       // If we received a full array of notes, replace the entire state
       setNotes(data)
+      return
+    }
+
+    // Handle both hard and soft delete operations
+    if ((changeType === 'DELETE' || changeType === 'SOFT_DELETE') && noteId) {
+      console.log(`Removing ${changeType === 'SOFT_DELETE' ? 'soft-deleted' : 'deleted'} note from UI:`, noteId)
+      // Remove deleted note from the state immediately
+      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteId))
       return
     }
 
@@ -739,7 +787,7 @@ export default function NotesScreen() {
           const updatedNotes = [...prevNotes]
           updatedNotes[existingIndex] = data
           return updatedNotes
-        } else if (changeType === 'INSERT') {
+        } else if (changeType === 'INSERT' || changeType === 'RECOVERY') {
           // Add new note to the beginning of the array
           return [data, ...prevNotes]
         } else {
@@ -747,9 +795,6 @@ export default function NotesScreen() {
           return prevNotes
         }
       })
-    } else if (changeType === 'DELETE' && noteId) {
-      // Remove deleted note from the state
-      setNotes(prevNotes => prevNotes.filter(note => note.id !== noteId))
     }
   }, [])
 
@@ -925,6 +970,12 @@ export default function NotesScreen() {
           console.log('Failed to delete note, ID not found')
           // Revert optimistic update on failure
           loadNotes()
+        } else {
+          // Make sure to sync this change immediately if on web
+          // This isn't necessary but can help ensure changes propagate faster
+          if (Platform.OS === 'web' && noteService.current.syncChanges) {
+            noteService.current.syncChanges()
+          }
         }
       } catch (error) {
         console.error('Error deleting note:', error)
@@ -1010,8 +1061,7 @@ export default function NotesScreen() {
     [loadNotes]
   )
 
-  const renderItem = useCallback(({item, index}) => <NoteCard item={item} index={index} onDelete={handleDeleteNote} onUpdateCategory={handleUpdateCategory} onToggleCompletion={handleToggleCompletion} onUpdateDueDate={handleUpdateDueDate} onUpdateReminder={handleUpdateReminder} onUpdatePriority={handleUpdatePriority} theme={theme} isLandscape={isLandscape} />, [handleDeleteNote, handleUpdateCategory, handleToggleCompletion, handleUpdateDueDate, handleUpdateReminder, handleUpdatePriority, theme, isLandscape])
-
+  const renderItem = useCallback(({item, index}) => <NoteCard item={item} index={index} onDelete={handleDeleteNote} onUpdateCategory={handleUpdateCategory} onToggleCompletion={handleToggleCompletion} onUpdateDueDate={handleUpdateDueDate} onUpdateReminder={handleUpdateReminder} onUpdatePriority={handleUpdatePriority} theme={theme} isLandscape={Platform.OS === 'web' ? gridColumns > 1 : isLandscape} />, [handleDeleteNote, handleUpdateCategory, handleToggleCompletion, handleUpdateDueDate, handleUpdateReminder, handleUpdatePriority, theme, isLandscape, gridColumns])
   const keyExtractor = useCallback(item => item.id, [])
 
   const toggleDeletedNotesModal = useCallback(() => {
@@ -1047,23 +1097,16 @@ export default function NotesScreen() {
           <Text style={[styles.emptyStateSubtext, {color: isDarkMode ? '#6b7280' : '#94A3B8'}]}>Tap the microphone button to create your first note</Text>
         </View>
       ) : (
-        <FlatList
-          data={notes}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
-          removeClippedSubviews={Platform.OS === 'android'}
-          initialNumToRender={5}
-          maxToRenderPerBatch={5}
-          windowSize={5}
-          numColumns={isLandscape ? 2 : 1} // Use 2 columns in landscape mode
-          key={isLandscape ? 'landscape' : 'portrait'} // Force re-render on orientation change
-          columnWrapperStyle={isLandscape ? styles.columnWrapper : null} // Style for columns in landscape
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} titleColor={theme.textColor} title="Refreshing..." />}
-        />
+        <FlatList data={notes} keyExtractor={keyExtractor} renderItem={renderItem} contentContainerStyle={styles.listContainer} removeClippedSubviews={Platform.OS === 'android'} initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5} numColumns={Platform.OS === 'web' ? gridColumns : isLandscape ? 2 : 1} key={Platform.OS === 'web' ? `grid-${gridColumns}` : isLandscape ? 'landscape' : 'portrait'} columnWrapperStyle={(Platform.OS === 'web' && gridColumns > 1) || isLandscape ? styles.columnWrapper : null} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} tintColor={isDarkMode ? '#6366F1' : '#4F46E5'} titleColor={theme.textColor} title="Refreshing..." />} />
       )}
       <FAB theme={theme} isLandscape={isLandscape} isOnline={isOnline} onCreateNote={handleOpenCreateNoteModal} />
-      <DeletedNotesModal visible={deletedNotesModalVisible} onClose={toggleDeletedNotesModal} theme={theme} noteService={noteService} />
+      <DeletedNotesModal
+        visible={deletedNotesModalVisible}
+        onClose={toggleDeletedNotesModal}
+        theme={theme}
+        noteService={noteService.current} // This is correct
+        user={user}
+      />
       <CreateNoteModal visible={createNoteModalVisible} onClose={() => setCreateNoteModalVisible(false)} onSave={handleSaveTypedNote} theme={theme} />
       <SyncServiceWeb userId={user?.id} noteService={noteService.current} onDataChange={handleDataChange} />
     </View>
@@ -1098,7 +1141,41 @@ const styles = StyleSheet.create({
   fabIcon: {marginRight: 6},
   fabText: {color: '#fff', fontSize: 14, fontWeight: '600'},
   iconButton: {padding: 4},
-  listContainer: {padding: 16, paddingBottom: 140},
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 0,
+    ...Platform.select({
+      web: {
+        flexWrap: 'wrap',
+        gap: 10
+      }
+    })
+  },
+  
+  // Adjusted container for the list
+  listContainer: {
+    padding: 16,
+    paddingBottom: 140,
+    ...Platform.select({
+      web: {
+        maxWidth: 1450,
+        marginHorizontal: 'auto',
+        width: '100%'
+      }
+    })
+  },
+  priorityOptions: {
+    gap: 12,
+    marginBottom: 24
+  },
+  priorityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8
+  },
   metaContainer: {flexDirection: 'column', gap: 4},
   metaItem: {alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 4},
   metaItemsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
@@ -1106,10 +1183,61 @@ const styles = StyleSheet.create({
   minutesContainer: {alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 20},
   modalActions: {flexDirection: 'row', justifyContent: 'space-between', marginTop: 10},
   modalButton: {alignItems: 'center', borderRadius: 8, flex: 1, justifyContent: 'center', marginHorizontal: 5, paddingHorizontal: 24, paddingVertical: 12},
-  modalContent: {borderRadius: 12, elevation: 5, maxWidth: 400, padding: 20, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.25, shadowRadius: 3.84, width: '90%'},
+  modalContent: {
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 480,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.25,
+    shadowRadius: 12
+  },
   modalHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20},
-  modalOverlay: {alignItems: 'center', flex: 1, justifyContent: 'center', padding: 20},
+  modalOverlay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    padding: 20,
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(5px)'
+      }
+    })
+  },
   modalTitle: {fontSize: 18, fontWeight: '600'},
+  clearButton: {
+    backgroundColor: 'rgba(220, 220, 220, 0.4)'
+  },
+
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)'
+  },
+  cancelButtonText: {
+    fontWeight: '600'
+  },
+
+  // Updated NoteCard styles for responsive layout
+  noteCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    elevation: 0,
+    marginBottom: 16,
+    padding: 16,
+    ...Platform.select({
+      web: {
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        ':hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+        }
+      }
+    })
+  },
+
   noteCard: {borderRadius: 16, borderWidth: 1, elevation: 0, marginBottom: 16, padding: 16},
   noteCategory: {borderRadius: 12, fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4},
   noteContent: {fontSize: 13, lineHeight: 22, marginBottom: 10},
@@ -1134,3 +1262,4 @@ const styles = StyleSheet.create({
   titleContainer: {alignItems: 'center', flexDirection: 'row', flex: 1, marginRight: 12},
   welcomeText: {fontSize: 28, fontWeight: '700', marginBottom: 4}
 })
+

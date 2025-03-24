@@ -1,4 +1,4 @@
-package com.taskly
+package com.tasskly
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

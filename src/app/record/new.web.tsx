@@ -16,9 +16,11 @@ import {SafeAreaView} from 'react-native-safe-area-context'
 import NoteService from '@/services/NoteService'
 import {useRealm} from '@/components/RealmContext'
 import {useAuth} from '@/components/AuthContext'
+import { createNoteService } from '@/services/NoteServiceFactory'
+import { supabase } from '@/lib/supabase'
 
 const {width} = Dimensions.get('window')
-const SPEECH_TIMEOUT = 20000
+const SPEECH_TIMEOUT = 10000
 const AUTO_SAVE_COUNTDOWN = 2
 const AUTO_CONFIRM_TIMEOUT = 1000
 
@@ -29,7 +31,7 @@ const NewTask = () => {
   const realm = useRealm()
   const {user} = useAuth()
   const userId = user?.id || user?._id || user?.userId || (typeof user === 'string' ? user : 'anonymous')
-  const noteService = new NoteService(realm, userId)
+  const noteService = useRef(null)
 
   // Handle hardware back button
   useFocusEffect(
@@ -42,6 +44,14 @@ const NewTask = () => {
       return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress)
     }, [router])
   )
+
+    useEffect(() => {
+      if (realm && user) {
+        // Use the factory pattern to get the appropriate note service
+        const service = createNoteService(realm, user.id, supabase)
+        noteService.current = service
+      }
+    }, [realm, user])
 
   const params = useLocalSearchParams()
 
@@ -794,7 +804,7 @@ const NewTask = () => {
       const color = categoryColorMap[category] || '#059669'
 
       // Create the note
-      const noteId = noteService.createNote(taskData.title, taskData.content || '', category, color, false, formattedDueDate, normalizedPriority, reminderValue)
+      const noteId = noteService.current.createNote(taskData.title, taskData.content || '', category, color, false, formattedDueDate, normalizedPriority, reminderValue)
 
       const noteData = {
         id: noteId,
@@ -837,6 +847,39 @@ const NewTask = () => {
       Platform.OS !== 'web' && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     }
   }
+
+  const handleSaveNote = async () => {
+    try {
+      // Save the note using your API/service
+      const savedNote = await noteService.createNote(
+        noteData.title,
+        noteData.content,
+        noteData.category,
+        noteData.color,
+        noteData.isCompleted,
+        noteData.dueDate,
+        noteData.priority
+      );
+      
+      // Mark it as already saved to prevent duplicate processing
+      const noteWithFlag = {
+        ...noteData,
+        alreadySaved: true
+      };
+      
+      // Navigate back to notes screen with the new note data
+      router.replace({
+        pathname: '/(tabs)',
+        params: {
+          newNote: JSON.stringify(noteWithFlag),
+          timestamp: Date.now().toString()
+        }
+      });
+    } catch (error) {
+      console.error('Error saving note:', error);
+      // Handle error
+    }
+  };
 
   // Show tutorial
   const showTutorial = () => {

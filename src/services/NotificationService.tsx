@@ -5,6 +5,13 @@ import {Platform} from 'react-native'
 
 // Notification service class for handling all notification operations
 export class NotificationService {
+  private realm: any
+  private userId: string
+  public hasPermission: boolean
+  public expoPushToken: string | null 
+  private notificationListener: any
+  private responseListener: any
+
   constructor(realm, userId) {
     this.realm = realm
     this.userId = userId
@@ -409,6 +416,34 @@ export class NotificationService {
         })
       }
     }
+  }
+
+  async testNotification() {
+    if (!this.hasPermission) {
+      console.log('No notification permission');
+      return false;
+    }
+    
+    // Schedule a test notification 5 seconds from now
+    const testDate = new Date(Date.now() + 5000);
+    
+    console.log('Scheduling test notification for:', testDate);
+    
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Test Notification',
+        body: 'This is a test notification',
+        data: { type: 'test' },
+        sound: true
+      },
+      trigger: {
+        date: testDate
+      },
+      identifier: `test-${Date.now()}`
+    });
+    
+    console.log('Test notification scheduled:', notificationId);
+    return notificationId;
   }
 
   // Parse reminder string to Date object

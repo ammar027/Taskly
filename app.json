@@ -18,6 +18,7 @@
     "android": {
       "package": "com.tasskly",
       "permissions": ["RECORD_AUDIO"],
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon-dark.png",
@@ -44,6 +45,7 @@
     "web": {
       "favicon": "./assets/icons/icon.png",
       "bundler": "metro",
+      "output": "static",
       "notification": {
         "vapidPublicKey": "BIDySAzyl4p3aij9V8HWr69g4udJGuaIwDtxC6sBLkGDiBgbEGuk12Yeb9Cvpc22vMLaVZnmRYPFqOOEvDXVqRM"
       }
@@ -52,6 +54,12 @@
       "expo-localization",
       "expo-font",
       "expo-audio",
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development",
+        }
+      ],
       ["react-native-edge-to-edge"],
       [
         "expo-splash-screen",
@@ -90,6 +98,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "oneSignalAppId": "1ccdf3b9-9e93-4cc1-8dfb-b6a74ccd908e",
       "router": {
         "origin": false
       },

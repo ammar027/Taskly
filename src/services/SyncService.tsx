@@ -387,14 +387,14 @@ export default function SyncService({ userId }) {
       if (connectionState.isConnected && connectionState.isInternetReachable !== false) {
         syncData()
 
-        // Set up periodic sync every 5 seconds when online
+        // Set up periodic sync every 1 seconds when online
         const intervalId = setInterval(() => {
           NetInfo.fetch().then((state) => {
             if (state.isConnected) {
               syncData()
             }
           })
-        }, 5000)
+        }, 1000)
 
         return intervalId
       } else {

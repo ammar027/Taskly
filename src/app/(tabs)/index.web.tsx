@@ -641,7 +641,7 @@ const FAB = memo(({theme, isLandscape, isOnline, onCreateNote}) => {
     return () => {
       subscription.remove()
     }
-  }, [])
+  }, [handlePress]) // Make sure handlePress is in the dependency array
 
   const {isTabletLandscape} = useScreenDetails()
 
@@ -677,6 +677,7 @@ export default function NotesScreen() {
   const navigationCount = useRef(0)
   const {isDarkMode} = useTheme()
   const noteService = useRef(null)
+  const processedTimestampRef = useRef(null);
   const {isTabletLandscape, isLandscape} = useScreenDetails()
   const {gridColumns, isSmallScreen} = useScreenSizeDetection()
   const [deletedNotesModalVisible, setDeletedNotesModalVisible] = useState(false)
@@ -852,24 +853,37 @@ export default function NotesScreen() {
   // Handle new note creation from params
   useEffect(() => {
     if (params?.newNote && !isLoading && noteService.current) {
-      console.log('Processing new note from params...')
-      try {
-        const noteData = JSON.parse(params.newNote)
-        console.log('Parsed note data:', noteData)
-
-        // Only save the note if it hasn't been saved already
-        if (!noteData.alreadySaved) {
-          // Save the note with all fields
-          noteService.current.createNote(noteData.title, noteData.content, noteData.category || 'Tasks', noteData.color || '#059669', noteData.isCompleted || false, noteData.dueDate || null, noteData.priority || 'medium')
+      // Only process if we haven't seen this timestamp before
+      if (params?.timestamp && params.timestamp !== processedTimestampRef.current) {
+        console.log('Processing new note from params...');
+        processedTimestampRef.current = params.timestamp;
+        
+        try {
+          const noteData = JSON.parse(params.newNote);
+          console.log('Parsed note data:', noteData);
+  
+          // Only save the note if it hasn't been saved already
+          if (!noteData.alreadySaved) {
+            // Save the note with all fields
+            noteService.current.createNote(
+              noteData.title, 
+              noteData.content, 
+              noteData.category || 'Tasks', 
+              noteData.color || '#059669', 
+              noteData.isCompleted || false, 
+              noteData.dueDate || null, 
+              noteData.priority || 'medium'
+            );
+            
+            // Add a small delay before loading notes to ensure the database has time to update
+            setTimeout(loadNotes, 300);
+          }
+        } catch (error) {
+          console.error('Error processing new note:', error);
         }
-
-        // Refresh notes list regardless of whether a new note was created
-        loadNotes()
-      } catch (error) {
-        console.error('Error processing new note:', error)
       }
     }
-  }, [params?.newNote, params?.timestamp, isLoading, loadNotes])
+  }, [params?.timestamp, isLoading, loadNotes]);
 
   const handleUpdateDueDate = useCallback(
     (noteId, dueDate) => {

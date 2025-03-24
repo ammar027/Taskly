@@ -383,7 +383,6 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    paddingBlockEnd:75,
   },
   header: {
     padding: 20,
@@ -411,6 +410,8 @@ const styles = StyleSheet.create({
   categoriesListContainer: { 
     paddingVertical: 10,
     paddingRight:25,
+    
+    paddingBottom:80,
   },
   notesListContainer: { 
     padding: 16,

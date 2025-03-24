@@ -20,6 +20,8 @@ import { useRealm } from "@/components/RealmContext"
 import { createNoteService } from "@/services/NoteServiceFactory"
 import PlatformSyncService from "@/services/SyncServiceFactory"
 
+
+
 // Auth-aware router wrapper component
 const AuthAwareRouter = ({ children }) => {
   const { user, isLoading, authInitialized, isOnline, pendingSessionValidation } = useAuth()

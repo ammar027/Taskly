@@ -663,17 +663,25 @@ export default function NotesScreen() {
   useEffect(() => {
     if (realm && user) {
       // Use the factory pattern to get the appropriate note service
-      const service = createNoteService(realm, user.id, supabase)
-      noteService.current = service
-
-      notificationService.current = new NotificationService(realm, user.id)
-    }
-    return () => {
-      if (notificationService.current) {
-        notificationService.current.cleanup()
+      const service = createNoteService(realm, user.id, supabase);
+      noteService.current = service;
+      
+      // Initialize OneSignal notification service
+      notificationService.current = new NotificationService(realm, user.id);
+      
+      // Store router in global for deep linking from notifications
+      if (Platform.OS !== 'web' && router) {
+        global.router = router;
       }
     }
-  }, [realm, user])
+    
+    // Clean up notification listeners when component unmounts
+    return () => {
+      if (notificationService.current) {
+        notificationService.current.cleanup();
+      }
+    };
+  }, [realm, user]);
 
   useEffect(() => {
     if (Platform.OS === 'web' && notificationService.current) {
@@ -683,16 +691,14 @@ export default function NotesScreen() {
 
   useEffect(() => {
     navigationCount.current += 1
-    console.log('Navigation count:', navigationCount.current)
-    console.log('Received params:', params)
   }, [params])
 
   useEffect(() => {
     if (realm && user) {
-      console.log('Loading initial notes from Realm...')
       loadNotes()
     }
   }, [realm, user])
+  
 
   // Function to load notes from Realm
   const loadNotes = useCallback(async () => {
@@ -700,7 +706,6 @@ export default function NotesScreen() {
 
     setIsLoading(true)
     try {
-      console.log('Fetching notes...')
       // Use await since the web implementation might be async
       const allNotes = await noteService.current.getAllNotes()
 
@@ -831,7 +836,7 @@ export default function NotesScreen() {
               dueDate
             );
           } else {
-            notificationService.current.cancelNotification(`duedate-${noteId}`);
+            notificationService.current.cancelNotifications(noteId, 'dueDate');
           }
           
           loadNotes();
@@ -875,7 +880,7 @@ export default function NotesScreen() {
               reminder
             );
           } else {
-            notificationService.current.cancelNotification(`reminder-${noteId}`);
+            notificationService.current.cancelNotifications(noteId, 'reminder');
           }
           
           loadNotes();
@@ -948,6 +953,7 @@ export default function NotesScreen() {
     },
     [loadNotes]
   );
+
 
   // Handle category updates
   const handleUpdateCategory = useCallback(

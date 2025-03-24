@@ -16,6 +16,9 @@ config.resolver.sourceExts = process.env.EXPO_PUBLIC_PLATFORM === 'web'
   ? ['web.tsx', 'web.ts', 'web.jsx', 'web.js', 'tsx', 'ts', 'jsx', 'js', 'cjs', 'json']
   : [...config.resolver.sourceExts, 'cjs'];
 
+// Add the asset extensions for font files
+config.resolver.assetExts = [...config.resolver.assetExts, 'ttf', 'woff', 'woff2', 'eot', 'otf'];
+
 config.transformer.getTransformOptions = async () => ({
   transform: {
     inlineRequires: true,

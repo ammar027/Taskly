@@ -6,13 +6,19 @@ import { useTheme, ThemeMode } from "@/components/ThemeContext"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useAuth } from "@/components/AuthContext"
 
-const WELCOME_SHOWN_KEY = "welcome_screen_shown"
+
+
 
 export default function Index() {
   const { isDarkMode, theme } = useTheme()
   const { user, isLoading: authLoading, isOnline, pendingSessionValidation } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false)
+
+  if (Platform.OS === 'web') {
+    const { loadIconFonts } = require('@/utils/iconFontLoader.web');
+    loadIconFonts();
+  }
 
   // Effect for navigation bar theming (only on native platforms)
   useEffect(() => {

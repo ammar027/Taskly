@@ -57,7 +57,14 @@
       [
         "onesignal-expo-plugin",
         {
-          "mode": "development",
+          "mode": "development"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/adaptive-icon.png",
+          "color": "#ffffff"
         }
       ],
       ["react-native-edge-to-edge"],
@@ -93,6 +100,10 @@
         }
       ]
     ],
+    "notification": {
+      "icon": "./assets/icons/adaptive-icon.png",
+      "color": "#ffffff"
+    },
     "experiments": {
       "tsconfigPaths": true,
       "typedRoutes": true

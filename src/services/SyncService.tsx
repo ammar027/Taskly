@@ -394,7 +394,7 @@ export default function SyncService({ userId }) {
               syncData()
             }
           })
-        }, 1000)
+        }, 10000)
 
         return intervalId
       } else {

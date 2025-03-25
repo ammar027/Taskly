@@ -428,150 +428,176 @@ const NewTask = () => {
     if (taskData.title && (field === 'description' || field === 'category' || field === 'dueDate' || field === 'priority')) {
       // If we have title and one of these important fields, suggest saving
       setTimeout(() => {
-        dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready to save. Say "save task" to finish..'});
+        dispatch({type: 'SET_CURRENT_ACTION', payload: 'Ready to save. Say "save task" to finish.'});
       }, 1000);
     }
     
   }
 
-  const processReminderString = reminderText => {
-    const lowerReminderText = reminderText.toLowerCase().trim()
+// ✅ Helper function to get current IST date and time
+const getISTDate = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60; // IST offset in minutes
+  const istTime = new Date(now.getTime() + istOffset * 60 * 1000);
+  return istTime;
+};
 
-    // Handle time-based reminders
-    const timeRegex = /(\d+)\s*(min|hour|hr|minute|minutes|hours|hrs)/i
-    const specificTimeRegex = /(\d+)(?::(\d+))?\s*(am|pm)/i
+// ✅ Helper function to format date in IST (YYYY-MM-DD)
+const formatDateIST = (date) => {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+};
 
-    // Time from now (e.g., "in 5 minutes", "in 2 hours")
-    const timeMatch = lowerReminderText.match(timeRegex)
-    if (timeMatch) {
-      const value = parseInt(timeMatch[1])
-      const unit = timeMatch[2].toLowerCase()
+const dayjs = require('dayjs');
+const customParseFormat = require('dayjs/plugin/customParseFormat');
+const weekday = require('dayjs/plugin/weekday');
+const isSameOrAfter = require('dayjs/plugin/isSameOrAfter');
 
-      // Convert to minutes for storage
-      let minutes = 0
-      if (unit.startsWith('min')) {
-        minutes = value
-      } else if (unit.startsWith('hour') || unit.startsWith('hr')) {
-        minutes = value * 60
-      }
+dayjs.extend(customParseFormat);
+dayjs.extend(weekday);
+dayjs.extend(isSameOrAfter);
 
-      if (minutes > 0) {
-        // Store as minutes from now for processing
-        return `in ${minutes} minutes`
-      }
+const convertTo24HourFormat = (hour, minute, meridiem) => {
+  hour = parseInt(hour);
+  minute = parseInt(minute) || 0;
+
+  if (meridiem) {
+    meridiem = meridiem.toLowerCase();
+    if (meridiem === 'p.m.' && hour < 12) {
+      hour += 12; // Convert PM to 24-hour format
+    } else if (meridiem === 'a.m.' && hour === 12) {
+      hour = 0; // Convert 12 AM to 00:00
     }
-
-    // Specific time (e.g., "at 5pm", "at 3:30am")
-    const timeOfDayMatch = lowerReminderText.match(specificTimeRegex)
-    if (timeOfDayMatch) {
-      const hour = parseInt(timeOfDayMatch[1])
-      const minute = timeOfDayMatch[2] ? parseInt(timeOfDayMatch[2]) : 0
-      const meridiem = timeOfDayMatch[3].toLowerCase()
-
-      // Convert to 24-hour format
-      let hour24 = hour
-      if (meridiem === 'pm' && hour < 12) {
-        hour24 += 12
-      } else if (meridiem === 'am' && hour === 12) {
-        hour24 = 0
-      }
-
-      return `at ${hour24.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-    }
-
-    // For today, tomorrow, etc. - reuse the date processing logic
-    const dateValue = processDateString(reminderText)
-    if (dateValue !== reminderText) {
-      return `on ${dateValue}`
-    }
-
-    // Return original text if no patterns match
-    return reminderText
   }
 
-  // Helper function to process date strings
-  const processDateString = dateText => {
-    const lowerDateText = dateText.toLowerCase().trim()
-    const today = new Date()
+  const formattedHour = hour.toString().padStart(2, '0');
+  const formattedMinute = minute.toString().padStart(2, '0');
 
-    // Handle relative dates
-    if (lowerDateText.includes('today')) {
-      return today.toISOString().split('T')[0]
-    }
+  return `${formattedHour}:${formattedMinute}`;
+};
 
-    if (lowerDateText.includes('tomorrow')) {
-      const tomorrow = new Date(today)
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      return tomorrow.toISOString().split('T')[0]
-    }
-
-    if (lowerDateText.match(/\d+\s*days?\s*from\s*(today|now)/)) {
-      const daysMatch = lowerDateText.match(/(\d+)\s*days?\s*from/)
-      if (daysMatch && daysMatch[1]) {
-        const days = parseInt(daysMatch[1])
-        const futureDate = new Date(today)
-        futureDate.setDate(futureDate.getDate() + days)
-        return futureDate.toISOString().split('T')[0]
-      }
-    }
-
-    if (lowerDateText.match(/next\s*(week|month|year)/)) {
-      const unit = lowerDateText.match(/next\s*(week|month|year)/)[1]
-      const futureDate = new Date(today)
-
-      if (unit === 'week') {
-        futureDate.setDate(futureDate.getDate() + 7)
-      } else if (unit === 'month') {
-        futureDate.setMonth(futureDate.getMonth() + 1)
-      } else if (unit === 'year') {
-        futureDate.setFullYear(futureDate.getFullYear() + 1)
-      }
-
-      return futureDate.toISOString().split('T')[0]
-    }
-
-    // Handle month and date combinations
-    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
-
-    // Check for patterns like "March 15" or "15th of March"
-    for (let i = 0; i < monthNames.length; i++) {
-      const monthName = monthNames[i]
-
-      // Pattern: "March 15" or "March 15th"
-      const pattern1 = new RegExp(`${monthName}\\s+(\\d+)(st|nd|rd|th)?`, 'i')
-      // Pattern: "15th of March"
-      const pattern2 = new RegExp(`(\\d+)(st|nd|rd|th)?\\s+of\\s+${monthName}`, 'i')
-
-      let match = lowerDateText.match(pattern1) || lowerDateText.match(pattern2)
-      if (match) {
-        const day = parseInt(match[1])
-        const month = i // 0-based month index
-        const year = today.getFullYear()
-
-        // If the date is in the past, assume next year
-        const dateObj = new Date(year, month, day)
-        if (dateObj < today) {
-          dateObj.setFullYear(year + 1)
-        }
-
-        return dateObj.toISOString().split('T')[0]
-      }
-    }
-
-    // Try to parse explicit date formats
-    try {
-      // Try to parse via Date constructor
-      const parsedDate = new Date(dateText)
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toISOString().split('T')[0]
-      }
-    } catch (e) {
-      console.log('Error parsing date:', e)
-    }
-
-    // Return the original text if parsing fails
-    return dateText
+const getNextWeekdayDate = (weekdayName) => {
+  const today = dayjs();
+  const targetDay = dayjs().day(weekdayName.toLowerCase());
+  if (targetDay.isSameOrAfter(today, 'day')) {
+    return targetDay;
   }
+  return targetDay.add(1, 'week');
+};
+
+const processReminderString = (reminderText) => {
+  const lowerReminderText = reminderText.toLowerCase().trim();
+
+  const timeRegex = /(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i;
+  const dateRegex = /(\d{1,2})(st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
+  const weekdayRegex = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i;
+  const tomorrowRegex = /\b(tomorrow)\b/i;
+
+  let date = dayjs();
+
+  // ✅ Handle tomorrow
+  if (tomorrowRegex.test(lowerReminderText)) {
+    date = date.add(1, 'day');
+  }
+
+  // ✅ Handle specific date (e.g., 21st March)
+  const dateMatch = lowerReminderText.match(dateRegex);
+  if (dateMatch) {
+    const [, day, , month] = dateMatch;
+    const formattedDate = `${day} ${month}`;
+    date = dayjs(formattedDate, 'D MMM');
+  }
+
+  // ✅ Handle weekdays (e.g., "Monday at 2:30 p.m.")
+  const weekdayMatch = lowerReminderText.match(weekdayRegex);
+  if (weekdayMatch) {
+    const weekdayName = weekdayMatch[1];
+    date = getNextWeekdayDate(weekdayName);
+  }
+
+  // ✅ Handle time
+  const timeMatch = lowerReminderText.match(timeRegex);
+  if (timeMatch) {
+    const [_, hour, minute, meridiem] = timeMatch;
+    const formattedTime = convertTo24HourFormat(hour, minute, meridiem);
+
+    // 🛠️ Return in "HH:MM on YYYY-MM-DD" format
+    const finalDateTime = `${formattedTime} on ${date.format('YYYY-MM-DD')}`;
+    return finalDateTime;
+  }
+
+  return `Invalid date or time format: ${reminderText}`;
+};
+// ✅ Helper function to process date strings
+const processDateString = (dateText) => {
+  const lowerDateText = dateText.toLowerCase().trim();
+  const today = getISTDate();
+
+  const monthNames = [
+    'january', 'jan', 'february', 'feb', 'march', 'mar', 'april', 'apr',
+    'may', 'june', 'jun', 'july', 'jul', 'august', 'aug', 'september', 'sep',
+    'october', 'oct', 'november', 'nov', 'december', 'dec'
+  ];
+
+  // Date patterns
+  const datePatterns = [
+    /^(?:(\w+)\s+(\d+)(?:st|nd|rd|th)?)$/i,
+    /^(?:(\d+)(?:st|nd|rd|th)?\s+of\s+(\w+))$/i
+  ];
+
+  for (const pattern of datePatterns) {
+    const match = lowerDateText.match(pattern);
+    if (match) {
+      let monthPart, dayPart;
+      if (isNaN(parseInt(match[1]))) {
+        monthPart = match[1];
+        dayPart = match[2];
+      } else {
+        monthPart = match[2];
+        dayPart = match[1];
+      }
+
+      const monthIndex = monthNames.findIndex(m => m.toLowerCase() === monthPart.toLowerCase());
+      if (monthIndex !== -1) {
+        const standardMonthIndex = Math.floor(monthIndex / 2);
+        const year = today.getFullYear();
+
+        const specificDate = new Date(year, standardMonthIndex, parseInt(dayPart));
+        return formatDateIST(specificDate);
+      }
+    }
+  }
+
+  if (lowerDateText.includes('today')) {
+    return formatDateIST(today);
+  }
+
+  if (lowerDateText.includes('tomorrow')) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return formatDateIST(tomorrow);
+  }
+
+  try {
+    const parts = dateText.match(/(\d+)/g);
+    if (parts && parts.length >= 2) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parts.length > 2 ? parseInt(parts[2]) : today.getFullYear();
+
+      const specificDate = new Date(year, month, day);
+      return formatDateIST(specificDate);
+    }
+  } catch (e) {
+    console.log('Error parsing date:', e);
+  }
+
+  return null;
+};
+
+
+  
+  
+  
 
   // Helper functions for matching categories and priorities
   const findClosestCategory = (input, categories) => {
@@ -730,24 +756,44 @@ const NewTask = () => {
   }
 
   const exitApp = () => {
+
     if (Platform.OS === 'web') {
+
       console.log('Exit app called in web - closing window')
+
       try {
+
         
+
         setTimeout(() => {
+
           console.log('Browser may have blocked window.close(). Please close this tab manually.')
+
           // You could redirect to a different page instead
+
           // window.location.href = '/dashboard'
+
         }, 300)
+
       } catch (error) {
+
         console.error('Error closing window:', error)
+
       }
+
     } else {
+
       // Import dynamically only on native platforms
+
       const RNExitApp = require('react-native-exit-app').default
+
       RNExitApp.exitApp()
+
     }
+
   }
+
+
 
   // Save task and navigate
   const saveTaskAndNavigate = () => {
@@ -766,9 +812,12 @@ const NewTask = () => {
         } else {
           try {
             const date = new Date(taskData.dueDate)
-            if (!isNaN(date.getTime())) {
-              formattedDueDate = date.toISOString().split('T')[0]
-            }
+
+            // ✅ Convert date to IST
+            const offset = 5.5 * 60 * 60 * 1000
+            date.setTime(date.getTime() + offset)
+
+            formattedDueDate = date.toLocaleDateString('en-CA') // YYYY-MM-DD format
           } catch (e) {
             console.error('Error formatting date:', e)
           }
@@ -812,7 +861,7 @@ const NewTask = () => {
 
       // Navigate based on parameters
       if (params.returnToTabs === 'true') {
-        router.push({
+        router.replace({
           pathname: '/(tabs)',
           params: {
             newNote: JSON.stringify(noteData),
@@ -820,13 +869,15 @@ const NewTask = () => {
           }
         })
       } else {
-
         if (Platform.OS === 'web') {
-          console.log('Task created in web')
-        } else {
-          setTimeout(() => exitApp(), 1000)
-        }
 
+          console.log('Task created in web')
+
+        } else {
+
+          setTimeout(() => exitApp(), 1000)
+
+        }
       }
 
       dispatch({type: 'SET_CURRENT_ACTION', payload: 'Task saved successfully'})

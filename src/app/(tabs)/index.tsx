@@ -1,10 +1,7 @@
-/* eslint-disable react-native/no-color-literals */
-/* eslint-disable react-native/no-inline-styles */
-/* eslint-disable react/display-name */
 import {View, Text, StyleSheet, FlatList, Pressable, Platform, Linking, Alert, RefreshControl, Dimensions, Modal} from 'react-native'
 import {Ionicons} from '@expo/vector-icons'
 import Animated, {FadeInUp, FadeOutDown} from 'react-native-reanimated'
-import {memo, useCallback, useContext, useEffect, useRef, useState} from 'react'
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {StatusBar} from 'expo-status-bar'
 import {router, useLocalSearchParams} from 'expo-router'
 import {ActivityIndicator} from 'react-native'
@@ -22,10 +19,74 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import {TextInput} from 'react-native-gesture-handler'
 import {createNoteService} from '@/services/NoteServiceFactory'
 import {supabase} from '@/lib/supabase'
-import {NotificationService} from '@/services/NotificationService'
+import { 
+  scheduleNotification, 
+  requestNotificationPermissions 
+} from '@/utils/NotificationScheduligUtility'; 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
+const FAB = memo(({theme, isLandscape, isOnline, onCreateNote}) => {
+  const handlePress = useCallback(() => {
+    if (isOnline) {
+      router.push({
+        pathname: '/record/new',
+        params: {returnToTabs: 'true'}
+      })
+    } else {
+      // Open the CreateNoteModal when offline
+      onCreateNote()
+    }
+  }, [isOnline, onCreateNote])
+
+  useEffect(() => {
+    const handleDeepLink = ({url}) => {
+      if (url && url.includes('add_note')) {
+        handlePress()
+      }
+    }
+
+    const getInitialURL = async () => {
+      try {
+        const url = await Linking.getInitialURL()
+        if (url) {
+          handleDeepLink({url})
+        }
+      } catch (error) {
+        console.error('Error getting initial URL:', error)
+      }
+    }
+
+    getInitialURL()
+    const subscription = Linking.addEventListener('url', handleDeepLink)
+
+    return () => {
+      subscription.remove()
+    }
+  }, [])
+
+  const {isTabletLandscape} = useScreenDetails()
+
+  return (
+    <Pressable
+      style={[
+        styles.fab,
+        {
+          backgroundColor: theme.isDarkMode ? 'rgb(27, 24, 95)' : 'rgb(78, 70, 229)',
+          borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)',
+          bottom: isTabletLandscape ? 20 : 90,
+          right: isTabletLandscape ? 20 : 10
+        }
+      ]}
+      onPress={handlePress}
+    >
+      <View style={styles.fabIcon}>
+        <Ionicons name={isOnline ? 'mic' : 'create'} size={24} color="#ffffff" />
+      </View>
+      <Text style={styles.fabText}>{isOnline ? 'Create' : 'Type'}</Text>
+    </Pressable>
+  )
+})
 // Updated NoteCard component with editable reminders and due dates
 const NoteCard = memo(({item, index, onDelete, onUpdateCategory, onToggleCompletion, onUpdateDueDate, onUpdateReminder, onUpdatePriority, theme, isLandscape}) => {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false)
@@ -246,6 +307,57 @@ const NoteCard = memo(({item, index, onDelete, onUpdateCategory, onToggleComplet
   )
 })
 
+// PrioritySelectionModal - Aligned with findClosestPriority function
+const PrioritySelectionModal = ({visible, onClose, onSelectPriority, currentPriority, theme}) => {
+  // These match the priorities expected by findClosestPriority
+  const priorities = [
+    {value: 'high', label: 'High', color: '#ef4444'},
+    {value: 'medium', label: 'Medium', color: '#f59e0b'},
+    {value: 'low', label: 'Low', color: '#10b981'}
+  ]
+
+  const handleSelect = priority => {
+    onSelectPriority(priority)
+    onClose()
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
+      <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
+        <View style={[styles.modalContent, {backgroundColor: theme.cardBackground}]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, {color: theme.textColor}]}>Select Priority</Text>
+            <Pressable onPress={onClose}>
+              <Ionicons name="close" size={24} color={theme.textColor} />
+            </Pressable>
+          </View>
+
+          <View style={styles.priorityOptions}>
+            {priorities.map(priority => (
+              <Pressable
+                key={priority.value}
+                style={[
+                  styles.priorityOption,
+                  {
+                    backgroundColor: currentPriority === priority.value ? `${priority.color}20` : 'transparent',
+                    borderColor: theme.borderColor
+                  }
+                ]}
+                onPress={() => handleSelect(priority.value)}
+              >
+                <View style={[styles.priorityDot, {backgroundColor: priority.color}]} />
+                <Text style={{color: theme.textColor}}>{priority.label}</Text>
+                {currentPriority === priority.value && <Ionicons name="checkmark" size={18} color={priority.color} style={{marginLeft: 'auto'}} />}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+// DatePickerModal
 const DatePickerModal = ({visible, onClose, onSelectDate, currentDate, theme}) => {
   // Initialize with current date if provided, otherwise use today
   // Parse the currentDate if it's in ISO format
@@ -317,59 +429,15 @@ const DatePickerModal = ({visible, onClose, onSelectDate, currentDate, theme}) =
   )
 }
 
-// PrioritySelectionModal - Aligned with findClosestPriority function
-// PrioritySelectionModal - Aligned with findClosestPriority function
-const PrioritySelectionModal = ({visible, onClose, onSelectPriority, currentPriority, theme}) => {
-  // These match the priorities expected by findClosestPriority
-  const priorities = [
-    {value: 'high', label: 'High', color: '#ef4444'},
-    {value: 'medium', label: 'Medium', color: '#f59e0b'},
-    {value: 'low', label: 'Low', color: '#10b981'}
-  ]
-
-  const handleSelect = priority => {
-    onSelectPriority(priority)
-    onClose()
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
-      <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
-        <View style={[styles.modalContent, {backgroundColor: theme.cardBackground}]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, {color: theme.textColor}]}>Select Priority</Text>
-            <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={theme.textColor} />
-            </Pressable>
-          </View>
-
-          <View style={styles.priorityOptions}>
-            {priorities.map(priority => (
-              <Pressable
-                key={priority.value}
-                style={[
-                  styles.priorityOption,
-                  {
-                    backgroundColor: currentPriority === priority.value ? `${priority.color}20` : 'transparent',
-                    borderColor: theme.borderColor
-                  }
-                ]}
-                onPress={() => handleSelect(priority.value)}
-              >
-                <View style={[styles.priorityDot, {backgroundColor: priority.color}]} />
-                <Text style={{color: theme.textColor}}>{priority.label}</Text>
-                {currentPriority === priority.value && <Ionicons name="checkmark" size={18} color={priority.color} style={{marginLeft: 'auto'}} />}
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  )
-}
-
-// ReminderPickerModal - Updated to align with processReminderString
-const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminder, theme}) => {
+const ReminderPickerModal = ({
+  visible, 
+  onClose, 
+  onSelectReminder, 
+  currentReminder, 
+  theme,
+  notificationTitle = "Reminder",
+  notificationBody = "You have a scheduled reminder"
+}) => {
   const [selectedOption, setSelectedOption] = useState('time')
   const [selectedTime, setSelectedTime] = useState(new Date())
   const [selectedMinutes, setSelectedMinutes] = useState(30)
@@ -377,83 +445,100 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
   const [showTimePicker, setShowTimePicker] = useState(Platform.OS === 'ios')
   const [showDatePicker, setShowDatePicker] = useState(false)
 
-  // Parse currentReminder to set initial state
-  useEffect(() => {
-    if (visible && currentReminder) {
-      // Parse the current reminder to set the initial values
-      if (currentReminder.startsWith('in ')) {
-        const minutesMatch = currentReminder.match(/in (\d+) minutes/)
-        if (minutesMatch) {
-          setSelectedOption('minutes')
-          setSelectedMinutes(parseInt(minutesMatch[1]))
-        }
-      } else if (currentReminder.startsWith('at ')) {
-        // Check for AM/PM format (e.g., "at 3:30pm")
-        const amPmTimeMatch = currentReminder.match(/at (\d+):?(\d+)?([ap]m)/i)
-        if (amPmTimeMatch) {
-          setSelectedOption('time')
-          let hours = parseInt(amPmTimeMatch[1])
-          const minutes = amPmTimeMatch[2] ? parseInt(amPmTimeMatch[2]) : 0
-          const isPm = amPmTimeMatch[3].toLowerCase() === 'pm'
-
-          // Convert to 24-hour format for the date object
-          if (isPm && hours < 12) hours += 12
-          if (!isPm && hours === 12) hours = 0
-
-          const date = new Date()
-          date.setHours(hours, minutes, 0, 0)
-          setSelectedTime(date)
-        }
-        // Also keep support for 24-hour format in case it comes from somewhere else
-        else {
-          const timeMatch = currentReminder.match(/at (\d{2}):(\d{2})/)
-          if (timeMatch) {
-            setSelectedOption('time')
-            const hours = parseInt(timeMatch[1])
-            const minutes = parseInt(timeMatch[2])
-            const date = new Date()
-            date.setHours(hours, minutes, 0, 0)
-            setSelectedTime(date)
-          }
-        }
-      } else if (currentReminder.startsWith('on ')) {
-        const dateMatch = currentReminder.match(/on (\d{4}-\d{2}-\d{2})/)
-        if (dateMatch) {
-          setSelectedOption('date')
-          setSelectedDate(new Date(dateMatch[1]))
-        }
-      }
+  // Modify the time picker to combine date and time correctly
+  const handleTimeChange = (event, time) => {
+    if (time) {
+      // Create a new date object using the selected date and time
+      const combinedDateTime = new Date(selectedDate)
+      combinedDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0)
+      setSelectedTime(combinedDateTime)
     }
-  }, [visible, currentReminder])
+  }
 
-  const handleConfirm = () => {
+  const handleDateChange = (event, date) => {
+    if (date) {
+      // Create a new date object preserving the current time
+      const combinedDateTime = new Date(date)
+      combinedDateTime.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0)
+      setSelectedDate(combinedDateTime)
+      setSelectedTime(combinedDateTime)
+    }
+  }
+
+  const handleConfirm = async () => {
     let reminder
+    let notificationTimeString
+
     if (selectedOption === 'minutes') {
+      // For minutes-based reminder, calculate the future time
+      const futureTime = new Date();
+      futureTime.setMinutes(futureTime.getMinutes() + selectedMinutes);
+      
       reminder = `in ${selectedMinutes} minutes`
+      notificationTimeString = `at ${futureTime.getHours().toString().padStart(2, '0')}:${futureTime.getMinutes().toString().padStart(2, '0')} on ${futureTime.getFullYear()}-${(futureTime.getMonth() + 1).toString().padStart(2, '0')}-${futureTime.getDate().toString().padStart(2, '0')}`
     } else if (selectedOption === 'time') {
-      // Convert 24-hour format to AM/PM format for compatibility with processReminderString
+      // Use the combined date and time
       const hours24 = selectedTime.getHours()
       const minutes = selectedTime.getMinutes().toString().padStart(2, '0')
-      const hours12 = hours24 % 12 || 12 // Convert 0 to 12 for 12 AM
-      const ampm = hours24 >= 12 ? 'pm' : 'am'
 
-      // Format as "at 3:30pm" instead of "at 15:30"
-      reminder = `at ${hours12}:${minutes}${ampm}`
+      reminder = `at ${hours24.toString().padStart(2, '0')}:${minutes} on ${selectedTime.getFullYear()}-${(selectedTime.getMonth() + 1).toString().padStart(2, '0')}-${selectedTime.getDate().toString().padStart(2, '0')}`
+      notificationTimeString = reminder
     } else if (selectedOption === 'date') {
-      const year = selectedDate.getFullYear()
-      const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0')
-      const day = selectedDate.getDate().toString().padStart(2, '0')
-      reminder = `on ${year}-${month}-${day}`
+      // Ensure time is preserved when only date option is selected
+      const hours24 = selectedTime.getHours()
+      const minutes = selectedTime.getMinutes().toString().padStart(2, '0')
+
+      reminder = `at ${hours24.toString().padStart(2, '0')}:${minutes} on ${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}`
+      notificationTimeString = reminder
     }
 
-    onSelectReminder(reminder)
-    onClose()
+    try {
+      // Request notification permissions
+      const hasPermission = await requestNotificationPermissions();
+      
+      if (hasPermission) {
+        // Schedule the notification
+        const notificationResult = await scheduleNotification(notificationTimeString, {
+          title: notificationTitle,
+          body: notificationBody,
+        });
+
+        if (notificationResult.success) {
+          // Attach notification ID to the reminder
+          onSelectReminder({
+            reminderText: reminder,
+            notificationId: notificationResult.notificationId
+          });
+        } else {
+          // Handle scheduling failure
+          onSelectReminder({
+            reminderText: reminder,
+            notificationId: null
+          });
+        }
+      } else {
+        // Permissions not granted, still pass the reminder
+        onSelectReminder({
+          reminderText: reminder,
+          notificationId: null
+        });
+      }
+    } catch (error) {
+      console.error('Notification scheduling error:', error);
+      onSelectReminder({
+        reminderText: reminder,
+        notificationId: null
+      });
+    }
+
+    onClose();
   }
 
   const handleClear = () => {
     onSelectReminder(null)
     onClose()
   }
+
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent={true}>
@@ -467,9 +552,6 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
           </View>
 
           <View style={styles.reminderOptions}>
-            <Pressable style={[styles.reminderOption, selectedOption === 'minutes' && styles.selectedOption, {borderColor: theme.borderColor}]} onPress={() => setSelectedOption('minutes')}>
-              <Text style={{color: theme.textColor}}>In Minutes</Text>
-            </Pressable>
             <Pressable style={[styles.reminderOption, selectedOption === 'time' && styles.selectedOption, {borderColor: theme.borderColor}]} onPress={() => setSelectedOption('time')}>
               <Text style={{color: theme.textColor}}>At Time</Text>
             </Pressable>
@@ -478,30 +560,12 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
             </Pressable>
           </View>
 
-          {selectedOption === 'minutes' && (
-            <View style={styles.minutesContainer}>
-              <TextInput
-                style={[styles.minutesInput, {color: theme.textColor, borderColor: theme.borderColor}]}
-                value={selectedMinutes.toString()}
-                onChangeText={text => {
-                  const num = parseInt(text)
-                  if (!isNaN(num) && num > 0) {
-                    setSelectedMinutes(num)
-                  }
-                }}
-                keyboardType="number-pad"
-                placeholder="Minutes"
-                placeholderTextColor={theme.mutedTextColor}
-              />
-              <Text style={{color: theme.textColor}}>minutes</Text>
-            </View>
-          )}
-
           {selectedOption === 'time' && (
             <View style={styles.timePickerContainer}>
               {Platform.OS === 'ios' ? (
-                <DateTimePicker value={selectedTime} mode="time" display="spinner" onChange={(event, time) => setSelectedTime(time || selectedTime)} style={{width: '100%'}} textColor={theme.textColor} />
+                <DateTimePicker value={selectedTime} mode="time" display="spinner" onChange={handleTimeChange} style={{width: '100%'}} textColor={theme.textColor} />
               ) : (
+                // Similar changes for Android time picker
                 <>
                   <Pressable style={[styles.timeDisplay, {borderColor: theme.borderColor}]} onPress={() => setShowTimePicker(true)}>
                     <Text style={{color: theme.textColor}}>{selectedTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</Text>
@@ -515,7 +579,7 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
                       display="default"
                       onChange={(event, time) => {
                         setShowTimePicker(false)
-                        if (time) setSelectedTime(time)
+                        handleTimeChange(event, time)
                       }}
                     />
                   )}
@@ -527,8 +591,9 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
           {selectedOption === 'date' && (
             <View style={styles.datePickerContainer}>
               {Platform.OS === 'ios' ? (
-                <DateTimePicker value={selectedDate} mode="date" display="spinner" onChange={(event, date) => setSelectedDate(date || selectedDate)} style={{width: '100%'}} textColor={theme.textColor} />
+                <DateTimePicker value={selectedDate} mode="date" display="spinner" onChange={handleDateChange} style={{width: '100%'}} textColor={theme.textColor} />
               ) : (
+                // Similar changes for Android date picker
                 <>
                   <Pressable style={[styles.dateDisplay, {borderColor: theme.borderColor}]} onPress={() => setShowDatePicker(true)}>
                     <Text style={{color: theme.textColor}}>{selectedDate.toLocaleDateString()}</Text>
@@ -542,7 +607,7 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
                       display="default"
                       onChange={(event, date) => {
                         setShowDatePicker(false)
-                        if (date) setSelectedDate(date)
+                        handleDateChange(event, date)
                       }}
                     />
                   )}
@@ -565,68 +630,6 @@ const ReminderPickerModal = ({visible, onClose, onSelectReminder, currentReminde
   )
 }
 
-const FAB = memo(({theme, isLandscape, isOnline, onCreateNote}) => {
-  const handlePress = useCallback(() => {
-    if (isOnline) {
-      router.push({
-        pathname: '/record/new',
-        params: {returnToTabs: 'true'}
-      })
-    } else {
-      // Open the CreateNoteModal when offline
-      onCreateNote()
-    }
-  }, [isOnline, onCreateNote])
-
-  useEffect(() => {
-    const handleDeepLink = ({url}) => {
-      if (url && url.includes('add_note')) {
-        handlePress()
-      }
-    }
-
-    const getInitialURL = async () => {
-      try {
-        const url = await Linking.getInitialURL()
-        if (url) {
-          handleDeepLink({url})
-        }
-      } catch (error) {
-        console.error('Error getting initial URL:', error)
-      }
-    }
-
-    getInitialURL()
-    const subscription = Linking.addEventListener('url', handleDeepLink)
-
-    return () => {
-      subscription.remove()
-    }
-  }, [])
-
-  const {isTabletLandscape} = useScreenDetails()
-
-  return (
-    <Pressable
-      style={[
-        styles.fab,
-        {
-          backgroundColor: theme.isDarkMode ? 'rgb(27, 24, 95)' : 'rgb(78, 70, 229)',
-          borderColor: theme.isDarkMode ? 'rgba(149, 145, 228, 0.2)' : 'rgba(79, 70, 229, 0.1)',
-          bottom: isTabletLandscape ? 20 : 90,
-          right: isTabletLandscape ? 20 : 10
-        }
-      ]}
-      onPress={handlePress}
-    >
-      <View style={styles.fabIcon}>
-        <Ionicons name={isOnline ? 'mic' : 'create'} size={24} color="#ffffff" />
-      </View>
-      <Text style={styles.fabText}>{isOnline ? 'Create' : 'Type'}</Text>
-    </Pressable>
-  )
-})
-
 export default function NotesScreen() {
   const realm = useRealm()
   const {user} = useContext(AuthContext)
@@ -638,7 +641,6 @@ export default function NotesScreen() {
   const navigationCount = useRef(0)
   const {isDarkMode} = useTheme()
   const noteService = useRef(null)
-  const notificationService = useRef(null)
   const [deletedNotesModalVisible, setDeletedNotesModalVisible] = useState(false)
   const [createNoteModalVisible, setCreateNoteModalVisible] = useState(false)
   const handleOpenCreateNoteModal = useCallback(() => {
@@ -646,6 +648,8 @@ export default function NotesScreen() {
   }, [])
   // Use your custom hook for orientation and device detection
   const {isTabletLandscape, isLandscape} = useScreenDetails()
+  
+  
 
   // Define theme objects
   const theme = {
@@ -663,42 +667,23 @@ export default function NotesScreen() {
   useEffect(() => {
     if (realm && user) {
       // Use the factory pattern to get the appropriate note service
-      const service = createNoteService(realm, user.id, supabase);
-      noteService.current = service;
-      
-      // Initialize OneSignal notification service
-      notificationService.current = new NotificationService(realm, user.id);
-      
-      // Store router in global for deep linking from notifications
-      if (Platform.OS !== 'web' && router) {
-        global.router = router;
-      }
+      const service = createNoteService(realm, user.id, supabase)
+      noteService.current = service
     }
-    
-    // Clean up notification listeners when component unmounts
-    return () => {
-      if (notificationService.current) {
-        notificationService.current.cleanup();
-      }
-    };
-  }, [realm, user]);
-
-  useEffect(() => {
-    if (Platform.OS === 'web' && notificationService.current) {
-      notificationService.current.rescheduleWebNotifications()
-    }
-  }, [notificationService.current])
+  }, [realm, user])
 
   useEffect(() => {
     navigationCount.current += 1
+    console.log('Navigation count:', navigationCount.current)
+    console.log('Received params:', params)
   }, [params])
 
   useEffect(() => {
     if (realm && user) {
+      console.log('Loading initial notes from Realm...')
       loadNotes()
     }
   }, [realm, user])
-  
 
   // Function to load notes from Realm
   const loadNotes = useCallback(async () => {
@@ -706,6 +691,7 @@ export default function NotesScreen() {
 
     setIsLoading(true)
     try {
+      console.log('Fetching notes...')
       // Use await since the web implementation might be async
       const allNotes = await noteService.current.getAllNotes()
 
@@ -812,88 +798,56 @@ export default function NotesScreen() {
 
   const handleUpdateDueDate = useCallback(
     (noteId, dueDate) => {
-      if (!noteService.current) return;
+      if (!noteService.current) return
 
-      console.log('Updating due date for note:', noteId, dueDate);
+      console.log('Updating due date for note:', noteId, dueDate)
 
       try {
         // Update the note
-        const updates = { dueDate: dueDate };
-        const success = noteService.current.updateNote(noteId, updates);
+        const updates = {dueDate: dueDate}
+        const success = noteService.current.updateNote(noteId, updates)
 
         if (success) {
-          console.log('Note due date updated successfully');
-          
-          // Find the note to get its details
-          const note = notes.find(n => n.id === noteId);
-          
-          // Schedule or cancel due date notification
-          if (dueDate && note) {
-            notificationService.current.scheduleDueDateNotification(
-              noteId, 
-              note.title, 
-              note.content, 
-              dueDate
-            );
-          } else {
-            notificationService.current.cancelNotifications(noteId, 'dueDate');
-          }
-          
-          loadNotes();
+          console.log('Note due date updated successfully')
+          loadNotes()
         } else {
-          console.log('Failed to update note due date, ID not found');
+          console.log('Failed to update note due date, ID not found')
         }
       } catch (error) {
-        console.error('Error updating note due date:', error);
-        Alert.alert('Error', 'Failed to update due date');
+        console.error('Error updating note due date:', error)
+        Alert.alert('Error', 'Failed to update due date')
       }
     },
-    [loadNotes, notes]
-  );
+    [loadNotes]
+  )
 
   const handleUpdateReminder = useCallback(
     (noteId, reminder) => {
-      if (!noteService.current) return;
+      if (!noteService.current) return
 
-      console.log('Updating reminder for note:', noteId, reminder);
+      console.log('Updating reminder for note:', noteId, reminder)
 
       try {
-        let success;
+        let success
         if (reminder) {
-          success = noteService.current.setReminder(noteId, reminder);
+          success = noteService.current.setReminder(noteId, reminder)
         } else {
-          success = noteService.current.clearReminder(noteId);
+          success = noteService.current.clearReminder(noteId)
         }
 
         if (success) {
-          console.log('Note reminder updated successfully');
-          
-          // Find the note to get its details
-          const note = notes.find(n => n.id === noteId);
-          
-          // Schedule or cancel reminder notification
-          if (reminder && note) {
-            notificationService.current.scheduleReminderNotification(
-              noteId, 
-              note.title, 
-              note.content, 
-              reminder
-            );
-          } else {
-            notificationService.current.cancelNotifications(noteId, 'reminder');
-          }
-          
-          loadNotes();
+          console.log('Note reminder updated successfully')
+          loadNotes()
         } else {
-          console.log('Failed to update note reminder, ID not found');
+          console.log('Failed to update note reminder, ID not found')
         }
       } catch (error) {
-        console.error('Error updating note reminder:', error);
-        Alert.alert('Error', 'Failed to update reminder');
+        console.error('Error updating note reminder:', error)
+        Alert.alert('Error', 'Failed to update reminder')
       }
     },
-    [loadNotes, notes]
-  );
+    [loadNotes]
+  )
 
   const handleUpdatePriority = useCallback(
     (noteId, priority) => {
@@ -926,34 +880,27 @@ export default function NotesScreen() {
   // Handle note deletion
   const handleDeleteNote = useCallback(
     noteId => {
-      if (!noteService.current) return;
+      if (!noteService.current) return
 
-      console.log('Deleting note with ID:', noteId);
+      console.log('Deleting note with ID:', noteId)
 
       try {
         // Delete the note (soft delete)
-        const success = noteService.current.deleteNote(noteId);
+        const success = noteService.current.deleteNote(noteId)
 
         if (success) {
-          console.log('Note deleted successfully');
-          
-          // Cancel all notifications for this note
-          if (notificationService.current) {
-            notificationService.current.cancelNoteNotifications(noteId);
-          }
-          
-          loadNotes();
+          console.log('Note deleted successfully')
+          loadNotes()
         } else {
-          console.log('Failed to delete note, ID not found');
+          console.log('Failed to delete note, ID not found')
         }
       } catch (error) {
-        console.error('Error deleting note:', error);
-        Alert.alert('Error', 'Failed to delete note');
+        console.error('Error deleting note:', error)
+        Alert.alert('Error', 'Failed to delete note')
       }
     },
     [loadNotes]
-  );
-
+  )
 
   // Handle category updates
   const handleUpdateCategory = useCallback(
@@ -988,6 +935,7 @@ export default function NotesScreen() {
       if (!noteService.current) return
 
       console.log('Toggling completion for note:', noteId, isCompleted)
+
       try {
         const success = noteService.current.toggleCompletion(noteId, isCompleted)
 
@@ -1083,78 +1031,361 @@ export default function NotesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  welcomeText: {fontSize: 28, fontWeight: '700', marginBottom: 4},
-  subtitle: {fontSize: 15, fontWeight: '500'},
-  listContainer: {padding: 16, paddingBottom: 140},
-  columnWrapper: {justifyContent: 'space-between', marginBottom: 0},
-  emptyState: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20},
-  emptyStateText: {fontSize: 18, fontWeight: '600', marginTop: 12},
-  emptyStateSubtext: {fontSize: 14, textAlign: 'center', marginTop: 8},
-  noteCard: {marginBottom: 16, borderRadius: 16, padding: 16, elevation: 0, borderWidth: 1},
-  noteHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12},
-  titleContainer: {flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12},
-  categoryDot: {width: 8, height: 8, borderRadius: 4, marginRight: 8},
-  noteTitle: {fontSize: 22, fontWeight: '600', flex: 1},
-  noteCategory: {fontSize: 14, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12},
-  noteContent: {fontSize: 13, lineHeight: 22, marginBottom: 10},
-  fab: {position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 90, right: 10, borderRadius: 30, padding: 15, flexDirection: 'row', alignItems: 'center', elevation: 0, borderWidth: 1},
-  fabIcon: {marginRight: 6},
-  fabText: {color: '#fff', fontSize: 14, fontWeight: '600'},
-  checkboxContainer: {marginRight: 8},
-  dateAndMetaContainer: {flex: 1, flexDirection: 'column', alignItems: 'flex-start'},
-  checkbox: {width: 20, height: 20, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center'},
-  noteFooter: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 8},
-  dateAndDueContainer: {flexDirection: 'column', alignItems: 'flex-start'},
-  noteDate: {fontSize: 12, fontWeight: '500', marginBottom: 4},
-  metaItemsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
-  metaItem: {flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12},
-  metaText: {fontSize: 12, fontWeight: '500', marginLeft: 4},
-  addMetaItem: {flexDirection: 'row', alignItems: 'center', paddingVertical: 2, opacity: 0.7, borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)', borderStyle: 'dashed', borderRadius: 12, paddingHorizontal: 6},
-  actionIcons: {flexDirection: 'row', gap: 12},
-  iconButton: {padding: 4},
-  dueDateIcon: {marginRight: 4},
-  dueDateText: {fontSize: 12, fontWeight: '500'},
-  rightFooterSection: {flexDirection: 'row', alignItems: 'center'},
-  priority: {alignItems: 'center', borderRadius: 12, flexDirection: 'row', marginRight: 12, paddingHorizontal: 8, paddingVertical: 4},
-  priorityDot: {borderRadius: 6, height: 12, marginRight: 10, width: 12},
-  priorityPill: {alignItems: 'center', borderRadius: 12, height: 24, justifyContent: 'center', marginRight: 12, width: 24},
-  priorityText: {fontSize: 12, fontWeight: '700'},
-  metaContainer: {flexDirection: 'column', gap: 4},
-  dueDate: {flexDirection: 'row', alignItems: 'center', paddingVertical: 2},
-  reminder: {flexDirection: 'row', alignItems: 'center', paddingVertical: 2},
-  reminderIcon: {marginRight: 4},
-  reminderText: {fontSize: 12, fontWeight: '500'},
-  addMeta: {flexDirection: 'row', alignItems: 'center', paddingVertical: 2, opacity: 0.7},
-  addMetaText: {fontSize: 12, marginLeft: 4},
-  modalOverlay: {flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20},
-  modalContent: {width: '90%', maxWidth: 400, borderRadius: 12, padding: 20, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5},
-  modalHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20},
-  modalTitle: {fontSize: 18, fontWeight: '600'},
-  datePickerContainer: {marginBottom: 20},
-  timePickerContainer: {marginBottom: 20},
-  dateDisplay: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8},
-  timeDisplay: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8},
-  modalActions: {flexDirection: 'row', justifyContent: 'space-between', marginTop: 10},
-  modalButton: {paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flex: 1, marginHorizontal: 5},
-  clearButton: {backgroundColor: 'rgba(160, 160, 160, 0.36)'},
-  clearButtonText: {color: 'rgb(0, 0, 0)', fontWeight: '600'},
-  confirmButton: {backgroundColor: '#4F46E5'},
-  confirmButtonText: {color: '#ffffff', fontWeight: '600'},
-  reminderOptions: {flexDirection: 'row', marginBottom: 20, gap: 8},
-  reminderOption: {flex: 1, padding: 10, borderWidth: 1, borderRadius: 8, alignItems: 'center'},
-  selectedOption: {backgroundColor: 'rgba(79, 70, 229, 0.1)', borderColor: '#4F46E5'},
-  minutesContainer: {flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8},
+  container: {
+    flex: 1
+  },
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4
+  },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: '500'
+  },
+  listContainer: {
+    padding: 16,
+    paddingBlockEnd: 140
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 0
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 12
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8
+  },
+  noteCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 0,
+    borderWidth: 1
+  },
+  noteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12
+  },
+  categoryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8
+  },
+  noteTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    flex: 1
+  },
+  noteCategory: {
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  noteContent: {
+    fontSize: 13,
+    lineHeight: 22,
+    marginBottom: 10
+  },
+  fab: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 90,
+    right: 10,
+    borderRadius: 30,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 0,
+    borderWidth: 1
+  },
+  fabIcon: {
+    marginRight: 6
+  },
+  fabText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  checkboxContainer: {
+    marginRight: 8
+  },
+  dateAndMetaContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'flex-start'
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  noteFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: 8
+  },
+  dateAndDueContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start'
+  },
+  noteDate: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 4
+  },
+  metaItemsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+
+  metaText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4
+  },
+
+  addMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    opacity: 0.7,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingHorizontal: 6
+  },
+
+  priorityPill: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12
+  },
+
+  priorityText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+
+  actionIcons: {
+    flexDirection: 'row',
+    gap: 12
+  },
+
+  iconButton: {
+    padding: 4
+  },
+
+  dueDateIcon: {
+    marginRight: 4
+  },
+  dueDateText: {
+    fontSize: 12,
+    fontWeight: '500'
+  },
+  rightFooterSection: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  priority: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 12
+  },
+  priorityDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 10
+  },
+  metaContainer: {
+    flexDirection: 'column',
+    gap: 4
+  },
+  dueDate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2
+  },
+  reminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2
+  },
+  reminderIcon: {
+    marginRight: 4
+  },
+  reminderText: {
+    fontSize: 12,
+    fontWeight: '500'
+  },
+  addMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    opacity: 0.7
+  },
+  addMetaText: {
+    fontSize: 12,
+    marginLeft: 4
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600'
+  },
+  datePickerContainer: {
+    marginBottom: 20
+  },
+  timePickerContainer: {
+    marginBottom: 20
+  },
+  dateDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 8
+  },
+  timeDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 8
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10
+  },
+  modalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    marginHorizontal: 5
+  },
+  clearButton: {
+    backgroundColor: 'rgba(160, 160, 160, 0.36)'
+  },
+  clearButtonText: {
+    color: 'rgb(0, 0, 0)',
+    fontWeight: '600'
+  },
+  confirmButton: {
+    backgroundColor: '#4F46E5'
+  },
+  confirmButtonText: {
+    color: '#ffffff',
+    fontWeight: '600'
+  },
+  reminderOptions: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 8
+  },
+  reminderOption: {
+    flex: 1,
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  selectedOption: {
+    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+    borderColor: '#4F46E5'
+  },
+  minutesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 8
+  },
+  minutesInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    width: 100
+  },
   priorityOptions: {
-    gap: 12,
-    marginBottom: 24
+    marginVertical: 10
   },
   priorityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1
   }
 })

@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { ReminderCard } from "@/components/cards/ReminderCard"
 import { useTheme } from "@/components/ThemeContext"
 import * as NavigationBar from "expo-navigation-bar";
+import { useScreenDetails } from "@/components/OrientationControl"
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -538,8 +539,7 @@ export default function RemindersScreen() {
     
     setModalVisible(false)
     
-    // Reset navigation bar position after closing modal
-    setTimeout(setNavigationBarPosition, 300);
+
   }
 
   // Get priority colors based on theme
@@ -703,8 +703,6 @@ export default function RemindersScreen() {
                 style={styles.datePickerButton}
                 onPress={() => {
                   setShowDatePicker(false)
-                  // Reset navigation bar after closing date picker
-                  setNavigationBarPosition()
                 }}
               >
                 <Text style={[styles.datePickerButtonText, { color: colors.accent }]}>Done</Text>
@@ -715,14 +713,13 @@ export default function RemindersScreen() {
       )}
     </View>
   )
-
+  const { isTabletLandscape, orientation } = useScreenDetails();
   // Main component render
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { 
           backgroundColor: colors.card,
-          borderBottomColor: colors.cardBorder 
         }]}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Reminders</Text>
           <Text style={[styles.headerSubtitle, { color: colors.subText }]}>
@@ -781,7 +778,8 @@ export default function RemindersScreen() {
 
         {/* Add Reminder Button */}
         <Pressable
-          style={[styles.fab, { backgroundColor: colors.accent }]}
+          style={[styles.fab, { backgroundColor: colors.accent,           bottom: isTabletLandscape ? 20 : 90,
+            right: isTabletLandscape ? 20 : 10 }]}
           onPress={openAddReminderModal}
           android_ripple={{ color: "#ffffff33", borderless: true, radius: 28 }}
         >
@@ -795,8 +793,6 @@ export default function RemindersScreen() {
           visible={modalVisible}
           onRequestClose={() => {
             setModalVisible(false)
-            // Reset navigation bar when closing modal
-            setTimeout(setNavigationBarPosition, 300)
           }}
           statusBarTranslucent
         >
@@ -937,8 +933,10 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
-    borderBottomWidth: 1,
+    paddingTop: 50,
+    borderBottomWidth: 0.3,
+    paddingRight:20,
+    borderBlockColor: 'lightgrey',
   },
   headerTitle: { 
     fontSize: 28, 
@@ -986,8 +984,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: "absolute",
-    bottom: 100,
-    right: 20,
+    // bottom: 100,
+    // right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,

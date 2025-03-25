@@ -1,0 +1,21 @@
+export const NoteSchema = {
+  name: 'Note',
+  primaryKey: 'id',
+  properties: {
+    id: 'string',
+    title: 'string',
+    content: 'string',
+    createdAt: 'date',
+    updatedAt: 'date',
+    userId: 'string',
+    category: { type: 'string', default: 'Tasks' },
+    color: { type: 'string', default: '#059669' },
+    isDeleted: { type: 'bool', default: false },
+    isSynced: { type: 'bool', default: false },
+    hardDeleted: { type: 'bool', default: false },
+    isCompleted: { type: 'bool', default: false },
+    dueDate: { type: 'string', optional: true },
+    priority: { type: 'string', default: 'medium' },
+    reminder: { type: 'string', optional: true },
+  },
+};

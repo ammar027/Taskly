@@ -89,3 +89,6 @@ web-build/
 
 # Yarn
 .yarn/*
+
+# Local Netlify folder
+.netlify

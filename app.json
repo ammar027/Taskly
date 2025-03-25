@@ -6,7 +6,7 @@
     "slug": "Taskly",
     "scheme": "taskly",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icons/icon.png",
     "updates": {
@@ -16,8 +16,9 @@
     "jsEngine": "hermes",
     "assetBundlePatterns": ["**/*"],
     "android": {
-      "package": "com.taskly",
+      "package": "com.tasskly",
       "permissions": ["RECORD_AUDIO"],
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon-dark.png",
@@ -39,19 +40,34 @@
     "ios": {
       "icon": "./assets/images/app-icon-ios.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.taskly"
+      "bundleIdentifier": "com.tasskly"
     },
     "web": {
-      "favicon": "./assets/images/app-icon-web-favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/icons/icon.png",
+      "bundler": "metro",
+      "output": "static",
+      "notification": {
+        "vapidPublicKey": "BIDySAzyl4p3aij9V8HWr69g4udJGuaIwDtxC6sBLkGDiBgbEGuk12Yeb9Cvpc22vMLaVZnmRYPFqOOEvDXVqRM"
+      }
     },
     "plugins": [
       "expo-localization",
       "expo-font",
       "expo-audio",
       [
-        "react-native-edge-to-edge"
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/adaptive-icon.png",
+          "color": "#ffffff"
+        }
+      ],
+      ["react-native-edge-to-edge"],
       [
         "expo-splash-screen",
         {
@@ -84,11 +100,16 @@
         }
       ]
     ],
+    "notification": {
+      "icon": "./assets/icons/adaptive-icon.png",
+      "color": "#ffffff"
+    },
     "experiments": {
       "tsconfigPaths": true,
       "typedRoutes": true
     },
     "extra": {
+      "oneSignalAppId": "1ccdf3b9-9e93-4cc1-8dfb-b6a74ccd908e",
       "router": {
         "origin": false
       },

@@ -1,12 +1,53 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
-import { useTheme } from '@/components/ThemeContext';
-import { NavigationBarThemeHandler } from '@/components/NavigationBarThemeHandeler';
+import {Tabs} from 'expo-router'
+import {Ionicons} from '@expo/vector-icons'
+import {Platform, Dimensions, useWindowDimensions, View, Text, StyleSheet, Pressable} from 'react-native'
+import {useTheme} from '@/components/ThemeContext'
+import {NavigationBarThemeHandler} from '@/components/NavigationBarThemeHandeler'
+import React, {useEffect, useState} from 'react'
+import * as ScreenOrientation from 'expo-screen-orientation'
+import {Image} from 'expo-image'
+
+// Custom hook to detect tablet and orientation
+const useDeviceOrientation = () => {
+  const window = useWindowDimensions()
+  const [orientation, setOrientation] = useState<'PORTRAIT' | 'LANDSCAPE'>('PORTRAIT')
+  const [isTablet, setIsTablet] = useState(false)
+
+  useEffect(() => {
+    const checkOrientation = async () => {
+      const orientationInfo = await ScreenOrientation.getOrientationAsync()
+      setOrientation(orientationInfo === ScreenOrientation.Orientation.LANDSCAPE_LEFT || orientationInfo === ScreenOrientation.Orientation.LANDSCAPE_RIGHT ? 'LANDSCAPE' : 'PORTRAIT')
+    }
+
+    // Check if device is a tablet (based on screen size)
+    const {width, height} = window
+    const maxDimension = Math.max(width, height)
+    setIsTablet(maxDimension >= 768)
+
+    checkOrientation()
+
+    // Listen for orientation changes
+    const subscription = ScreenOrientation.addOrientationChangeListener(() => {
+      checkOrientation()
+    })
+
+    return () => {
+      ScreenOrientation.removeOrientationChangeListener(subscription)
+    }
+  }, [window])
+
+  // Return true if it's a tablet in landscape mode
+  return {
+    isTabletLandscape: isTablet && orientation === 'LANDSCAPE',
+    isTablet,
+    orientation
+  }
+}
 
 export default function TabLayout() {
-  const { isDarkMode, theme } = useTheme();
-  
+  const {isDarkMode, theme} = useTheme()
+  const {isTabletLandscape, isTablet, orientation} = useDeviceOrientation()
+
   // Define theme colors
   const themeColors = {
     tabBackground: isDarkMode ? 'rgb(30, 30, 30)' : '#ffffff',
@@ -15,13 +56,169 @@ export default function TabLayout() {
     activeTintColor: '#4F46E5',
     inactiveTintColor: isDarkMode ? '#a0a0a0' : '#8E8E93',
     headerTintColor: isDarkMode ? '#e0e0e0' : '#1e293b',
-  };
-  
+    sidebarBackground: isDarkMode ? 'rgb(22, 22, 26)' : '#f5f5f7',
+    dividerColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    appNameColor: isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)'
+  }
+
+  // Tab configuration data
+  const tabConfig = [
+    {
+      name: 'index',
+      title: 'Tasks',
+      icon: 'document-text-outline'
+    },
+    {
+      name: 'categories',
+      title: 'Categories',
+      icon: 'folder-outline'
+    },
+    {
+      name: 'reminders',
+      title: 'Reminders',
+      icon: 'alarm-outline'
+    },
+    {
+      name: 'settings',
+      title: 'Settings',
+      icon: 'settings-outline'
+    }
+  ]
+
+  // Styles for tablet sidebar
+  const styles = StyleSheet.create({
+    activeTabItem: {
+      backgroundColor: isDarkMode ? 'rgba(79, 70, 229, 0.15)' : 'rgba(79, 70, 229, 0.1)'
+    },
+    activeTabLabel: {
+      color: themeColors.activeTintColor,
+      fontWeight: '600'
+    },
+    appNameContainer: {
+      borderBottomColor: themeColors.dividerColor,
+      borderBottomWidth: 1,
+      justifyContent: 'flex-end',
+      paddingBottom: 20,
+      paddingHorizontal: 20,
+      paddingTop: 40,
+      right: 60
+    },
+
+    container: {
+      flex: 1,
+      flexDirection: 'row'
+    },
+
+    contentContainer: {
+      flex: 1
+    },
+    image: {
+      borderRadius: 20,
+      height: 50,
+      marginBottom: 10,
+      width: 270
+    },
+    inactiveTabLabel: {
+      color: themeColors.inactiveTintColor
+    },
+    sidebarContainer: {
+      backgroundColor: themeColors.sidebarBackground,
+      borderRightColor: themeColors.dividerColor,
+      borderRightWidth: 1,
+      width: 250
+    },
+    tabIcon: {
+      marginRight: 14
+    },
+    tabItem: {
+      alignItems: 'center',
+      borderRadius: 10,
+      flexDirection: 'row',
+      marginHorizontal: 8,
+      marginTop: 10,
+      marginVertical: 10,
+      paddingHorizontal: 20,
+      paddingVertical: 18
+    },
+    tabLabel: {
+      fontSize: 16,
+      fontWeight: '500'
+    }
+  })
+
+  if (isTabletLandscape) {
+    return (
+      <View style={styles.container}>
+        <NavigationBarThemeHandler />
+
+        <Tabs
+          screenOptions={{
+            tabBarPosition: 'left',
+            tabBarShowLabel: false, // Hide default labels as we're using custom ones
+            tabBarStyle: {display: 'none'}, // Hide default tab bar
+            headerShown: false
+          }}
+          tabBar={({state, descriptors, navigation}) => (
+            <View style={styles.sidebarContainer}>
+              <View style={styles.appNameContainer}>
+                <Image style={styles.image} source={require('@/icons/adaptive-icon.png')} contentFit="cover" />
+              </View>
+
+              {state.routes.map((route, index) => {
+                const {options} = descriptors[route.key]
+                const label = options.title
+                const isFocused = state.index === index
+
+                const tab = tabConfig.find(t => t.name === route.name)
+                if (!tab) return null
+
+                return (
+                  <Pressable
+                    key={route.key}
+                    style={[styles.tabItem, isFocused && styles.activeTabItem]}
+                    onPress={() => {
+                      const event = navigation.emit({
+                        type: 'tabPress',
+                        target: route.key,
+                        canPreventDefault: true
+                      })
+
+                      if (!isFocused && !event.defaultPrevented) {
+                        navigation.navigate(route.name)
+                      }
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={isFocused ? {selected: true} : {}}
+                    accessibilityLabel={options.tabBarAccessibilityLabel}
+                  >
+                    <Ionicons name={tab.icon as any} size={24} color={isFocused ? themeColors.activeTintColor : themeColors.inactiveTintColor} style={styles.tabIcon} />
+                    <Text style={[styles.tabLabel, isFocused ? styles.activeTabLabel : styles.inactiveTabLabel]}>{label}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          )}
+        >
+          {tabConfig.map(tab => (
+            <Tabs.Screen
+              key={tab.name}
+              name={tab.name}
+              options={{
+                title: tab.title,
+                headerTitle: tab.title
+              }}
+            />
+          ))}
+        </Tabs>
+      </View>
+    )
+  }
+
+  // For phone or tablet in portrait, use the original bottom tabs
   return (
     <>
-      {/* Add the NavigationBarThemeHandler here to ensure it's always present */}
       <NavigationBarThemeHandler />
-      
+
       <Tabs
         screenOptions={{
           tabBarStyle: {
@@ -38,66 +235,39 @@ export default function TabLayout() {
               bottom: 0,
               left: 0,
               right: 0,
-              elevation: 8,
-            }),
+              elevation: 8
+            })
           },
           tabBarActiveTintColor: themeColors.activeTintColor,
           tabBarInactiveTintColor: themeColors.inactiveTintColor,
           headerStyle: {
-            backgroundColor: themeColors.headerBackground,
+            backgroundColor: themeColors.headerBackground
           },
           headerShown: false,
           headerTitleStyle: {
             fontWeight: '600',
             fontSize: 17,
-            color: themeColors.headerTintColor,
+            color: themeColors.headerTintColor
           },
           tabBarLabelStyle: {
             fontSize: 12,
-            fontWeight: '500',
+            fontWeight: '500'
           },
-        }}>
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Notes',
-            headerShown: false,
-            tabBarIcon: ({ size, color }) => (
-              <Ionicons name="document-text-outline" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="categories"
-          options={{
-            title: 'Categories',
-            headerTitle: 'Categories',
-            tabBarIcon: ({ size, color }) => (
-              <Ionicons name="folder-outline" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="reminders"
-          options={{
-            title: 'Reminders',
-            headerTitle: 'Reminders',
-            tabBarIcon: ({ size, color }) => (
-              <Ionicons name="alarm-outline" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: 'Settings',
-            headerTitle: 'Settings',
-            tabBarIcon: ({ size, color }) => (
-              <Ionicons name="settings-outline" size={size} color={color} />
-            ),
-          }}
-        />
+          tabBarButton: props => <Pressable {...props} android_ripple={{color: 'transparent'}} />
+        }}
+      >
+        {tabConfig.map(tab => (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: tab.title,
+              headerTitle: tab.title,
+              tabBarIcon: ({size, color}) => <Ionicons name={tab.icon as any} size={size} color={color} />
+            }}
+          />
+        ))}
       </Tabs>
     </>
-  );
+  )
 }

@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, ScrollView, Platform, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, ThemeMode } from '@/components/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
+import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/components/AuthContext';
+
+const USER_SESSION_KEY = 'user_session';
 
 export default function SettingsScreen() {
   const { theme, isDarkMode, toggleTheme, setThemeMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { isOnline } = useAuth();
   
   // Create theme-specific styles
   const themeColors = {
@@ -22,9 +31,40 @@ export default function SettingsScreen() {
     iconColor: isDarkMode ? '#e0e0e0' : '#1c1c1e',
     accentColor: '#4F46E5',
     rippleColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    dangerColor: '#ef4444',
   };
 
-  
+  useEffect(() => {
+    if (isOnline) {
+      fetchUserData();
+    }
+  }, [isOnline]);
+
+  const fetchUserData = async () => {
+    setIsLoading(true);
+    try {
+      const sessionData = await AsyncStorage.getItem(USER_SESSION_KEY);
+      
+      if (sessionData) {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) throw error;
+        
+        if (user) {
+          setUserData({
+            email: user.email,
+            name: user.user_metadata?.full_name || 'Taskly User',
+            avatar: user.user_metadata?.avatar_url,
+            created_at: new Date(user.created_at).toLocaleDateString(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleThemeToggle = () => {
     if (theme === ThemeMode.SYSTEM) {
@@ -34,7 +74,7 @@ export default function SettingsScreen() {
     }
     
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
     setThemeKey(prevKey => prevKey + 1); // Force re-render
@@ -44,20 +84,85 @@ export default function SettingsScreen() {
   const handleNotificationToggle = () => {
     setPushNotifications(prev => !prev);
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
   const handlePrivacyPolicy = async () => {
     try {
       if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       await WebBrowser.openBrowserAsync('https://taskly-pvc-p.vercel.app/');
     } catch (error) {
       console.error('Error opening privacy policy:', error);
     }
   };
+
+  const handleLogout = async () => {
+    if (Platform.OS === 'ios') {
+      Platform.OS !== 'web' && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.auth.signOut();
+              if (error) throw error;
+              
+              await AsyncStorage.removeItem(USER_SESSION_KEY);
+              router.replace('/auth?mode=signin');
+            } catch (error) {
+              console.error('Error logging out:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  // const OfflineBanner = () => (
+  //   !isOnline ? (
+  //     <View 
+  //       style={{ 
+  //         backgroundColor: '#FFA500', 
+  //         padding: 5, 
+  //         alignItems: 'center',
+  //         position: 'absolute',
+  //         top: 0,
+  //         left: 0,
+  //         right: 0,
+  //         zIndex: 100,
+  //       }}
+  //     >
+  //       <Text style={{ color: '#000', fontWeight: 'bold' }}>
+  //         Offline Mode - Limited functionality available
+  //       </Text>
+  //     </View>
+  //   ) : null
+  // );
 
   const SettingItem = ({ icon, text, rightElement, onPress, showBorder = true }) => (
     <Pressable 
@@ -97,11 +202,45 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      
+      {/* <OfflineBanner/> */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: themeColors.textColor }]}>Settings</Text>
       </View>
       
+      {/* User Profile Section - Only show when online */}
+      {isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.profileCard, { backgroundColor: themeColors.cardColor }]}>
+            <View style={styles.profileContent}>
+              {userData?.avatar ? (
+                <Image 
+                  source={{ uri: userData.avatar }} 
+                  style={styles.profileAvatar} 
+                />
+              ) : (
+                <View style={[styles.profileInitials, { backgroundColor: themeColors.accentColor }]}>
+                  <Text style={styles.initialsText}>
+                    {userData ? getInitials(userData.name) : '?'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: themeColors.textColor }]}>
+                  {userData?.name || 'Loading...'}
+                </Text>
+                <Text style={[styles.profileEmail, { color: themeColors.subTextColor }]}>
+                  {userData?.email || ''}
+                </Text>
+                <Text style={[styles.profileDate, { color: themeColors.subTextColor }]}>
+                  {userData ? `Member since ${userData.created_at}` : ''}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+      
+      {/* Appearance Section - Always visible */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           Appearance
@@ -129,50 +268,8 @@ export default function SettingsScreen() {
             : theme === ThemeMode.DARK ? 'Dark mode enabled' : 'Light mode enabled'}
         </Text>
       </View>
-
-      {/* <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
-          Voice Settings
-        </Text>
-        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
-          <SettingItem 
-            icon="language" 
-            text="Language" 
-            rightElement={
-              <View style={styles.settingRight}>
-                <Text style={[styles.settingValue, { color: themeColors.subTextColor }]}>
-                  English
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
-              </View>
-            }
-            showBorder={false}
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
-          Notifications
-        </Text>
-        <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
-          <SettingItem 
-            icon="notifications" 
-            text="Push Notifications" 
-            rightElement={
-              <Switch 
-                value={pushNotifications} 
-                onValueChange={handleNotificationToggle}
-                trackColor={{ false: '#767577', true: themeColors.accentColor }}
-                thumbColor={pushNotifications ? '#ffffff' : '#f4f3f4'}
-                ios_backgroundColor="#3e3e3e"
-              />
-            }
-            showBorder={false}
-          />
-        </View>
-      </View> */}
       
+      {/* About Section - Show version always, but Privacy Policy only when online */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: themeColors.subTextColor }]}>
           About
@@ -186,27 +283,64 @@ export default function SettingsScreen() {
                 1.0.0
               </Text>
             }
-            showBorder={true}
+            showBorder={isOnline} // Only show border if there's another item below
           />
-          <SettingItem 
-            icon="shield-checkmark" 
-            text="Privacy Policy" 
-            rightElement={
-              <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
-            }
-            onPress={handlePrivacyPolicy}
-            showBorder={true}
-          />
-          {/* <SettingItem 
-            icon="document-text" 
-            text="Terms of Service" 
-            rightElement={
-              <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
-            }
-            showBorder={false}
-          /> */}
+          
+          {/* Privacy Policy - Only when online */}
+          {isOnline && (
+            <SettingItem 
+              icon="shield-checkmark" 
+              text="Privacy Policy" 
+              rightElement={
+                <Ionicons name="chevron-forward" size={20} color={themeColors.subTextColor} />
+              }
+              onPress={handlePrivacyPolicy}
+              showBorder={false}
+            />
+          )}
         </View>
       </View>
+      
+      {/* Logout section - Only when online */}
+      {isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.card, { backgroundColor: themeColors.cardColor }]}>
+            <SettingItem 
+              icon="log-out" 
+              text="Logout" 
+              rightElement={
+                <Ionicons 
+                  name="chevron-forward" 
+                  size={20} 
+                  color={themeColors.dangerColor} 
+                />
+              }
+              onPress={handleLogout}
+              showBorder={false}
+            />
+          </View>
+        </View>
+      )}
+      
+      {/* Offline Mode Message - Show when offline */}
+      {!isOnline && (
+        <View style={styles.section}>
+          <View style={[styles.offlineMessage, { backgroundColor: themeColors.cardColor }]}>
+            <Ionicons 
+              name="cloud-offline" 
+              size={32} 
+              color={themeColors.subTextColor} 
+              style={styles.offlineIcon} 
+            />
+            <Text style={[styles.offlineText, { color: themeColors.textColor }]}>
+              You're currently offline
+            </Text>
+            <Text style={[styles.offlineSubText, { color: themeColors.subTextColor }]}>
+              Some features are unavailable without an internet connection
+            </Text>
+          </View>
+        </View>
+      )}
       
       <Text style={[styles.footerText, { color: themeColors.subTextColor }]}>
         © 2025 Taskly
@@ -220,14 +354,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingTop:18,
+    paddingTop: 13,
     paddingBottom: 40,
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  headerTitle: { fontSize: 30, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
+  headerTitle: { 
+    fontSize: 30, 
+    fontWeight: '700', 
+    marginBottom: 2 
+  },
   section: {
     marginTop: 24,
     paddingHorizontal: 16,
@@ -290,5 +428,89 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     marginTop: 32,
+  },
+  // Profile section styles
+  profileCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  profileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+  profileInitials: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  profileInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  profileDate: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  // Offline message styles
+  offlineMessage: {
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  offlineIcon: {
+    marginBottom: 10,
+  },
+  offlineText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  offlineSubText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
